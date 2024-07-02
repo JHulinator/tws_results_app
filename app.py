@@ -1,31 +1,25 @@
 # region Imports ------------------------------------------------------------------------------------------------------
+from dash import Dash, html, dash_table
 import pandas as pd
-import plotly.graph_objects as go
 
 import gpxpy
 import gpxpy.gpx
 
 from math import radians, cos, sin, asin, sqrt
-# endregion Imports ---------------------------------------------------------------------------------------------------
+# endregion imports ---------------------------------------------------------------------------------------------------
 
 
-#region Globals  -----------------------------------------------------------------------------------------------------
+# region Globals  -----------------------------------------------------------------------------------------------------
 # Global Constants
-YEAR = 2024
 TWS_ROUTE = gpxpy.parse(open('data\\tws_race_route.gpx', 'r'))
 TWS_TOTAL_MILES: float
 TWS_CHECKPOINTS: pd.DataFrame
-DEBUG = True # This is a toggle for faster lower quality rendering for debugging
-REGEN = True # If the videos and should overwritten, set this to true
 
-# # Global Variables
-# data: pd.DataFrame
-# speed_data: pd.DataFrame
-# team_list: [str]
-# plt.style.use('dark.mplstyle')
-
-# finish_message = list()# Make a list of the final labels that will be displayed on each bar when the team reaches the finish or drops out
-#endregion ------------------------------------------------------------------------------------------------------------
+# Global Variables
+app = Dash()
+year = 2024
+data: pd.DataFrame
+# endregion globals ---------------------------------------------------------------------------------------------------
 
 
 # region helper methods -----------------------------------------------------------------------------------------------
@@ -175,13 +169,13 @@ def get_speed(point1:gpxpy.gpx.GPXTrackPoint, point2:gpxpy.gpx.GPXTrackPoint) ->
 def get_miles_from_start(latitude:float, longitude:float) -> float:
     to_finish = get_milage_to_finish(latitude=latitude, longitude=longitude)
     return TWS_TOTAL_MILES - to_finish
-
 # endregion -----------------------------------------------------------------------------------------------------------
 
-#region main method ---------------------------------------------------------------------------------------------------
+
+# region Main Method --------------------------------------------------------------------------------------------------
 def main():
     print('Starting the main method------------------------------------------------------------------------------------')
-    global TWS_TOTAL_MILES, TWS_CHECKPOINTS, data
+    global TWS_TOTAL_MILES, TWS_CHECKPOINTS, data, year, app
     
     # Calculate the total miles of the TWS course in the tws_race_route.gpx file
     TWS_TOTAL_MILES = get_track_len(TWS_ROUTE.tracks[0])
@@ -199,12 +193,24 @@ def main():
     TWS_CHECKPOINTS = TWS_CHECKPOINTS.sort_values('Milage')
     
     # Get the Raw Results Data
-    data = get_raw_data(year=YEAR)
-    print(TWS_CHECKPOINTS)
+    data = get_raw_data(year=year)
+    df = pd.read_csv('https://raw.githubusercontent.com/plotly/datasets/master/gapminder2007.csv')
+    data = data.loc[:,'Overall Place':'Seadrift']
+    print(data)
+    print(data.columns)
+    #print(data.to_dict('records'))
+    #print(df.to_dict('records'))
+
+    # Build the app layout
+    app.layout = [
+        html.Div(children='Tabular Split Data'),
+        dash_table.DataTable(data=data.to_dict('records'), page_size=20)
+        ]
+    
+    app.run(debug=True)
     print('Successfully reached the end of main -----------------------------------------------------------------------')
 
-# Call the main function
-if __name__ == "__main__":
+
+# Call the main method
+if __name__ == '__main__':
     main()
-#endregion
-# endregion main method -----------------------------------------------------------------------------------------------

@@ -18,11 +18,6 @@ TWS_CHECKPOINTS: pd.DataFrame
 DEBUG = True # This is a toggle for faster lower quality rendering for debugging
 REGEN = True # If the videos and should overwritten, set this to true
 
-# # Global Variables
-# data: pd.DataFrame
-# speed_data: pd.DataFrame
-# team_list: [str]
-# plt.style.use('dark.mplstyle')
 
 # finish_message = list()# Make a list of the final labels that will be displayed on each bar when the team reaches the finish or drops out
 #endregion ------------------------------------------------------------------------------------------------------------

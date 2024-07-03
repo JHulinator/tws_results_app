@@ -19,6 +19,7 @@ import os
 TWS_ROUTE = gpxpy.parse(open('data\\tws_race_route.gpx', 'r'))
 TWS_TOTAL_MILES: float
 TWS_CHECKPOINTS: pd.DataFrame
+DEBUG = True
 
 # Global Variables
 # stylesheet with the .dbc class to style  dcc, DataTable and AG Grid components with a Bootstrap theme
@@ -226,9 +227,10 @@ dropdown = html.Div(
     [
         dbc.Label("Select Year"),
         dcc.Dropdown(
-            years,
-            "pop",
-            id="indicator",
+            options=years,
+            value=year,
+            placeholder=str(year),
+            id='year-select',
             clearable=False,
         ),
     ],
@@ -297,8 +299,9 @@ tabs = dbc.Card(dbc.Tabs([tab1, tab2, tab3, tab4]))
 # region Main Method --------------------------------------------------------------------------------------------------
 def main():
     print('Starting the main method------------------------------------------------------------------------------------')
-
+    global DEBUG
     # region Build the app layout
+
     app.layout = dbc.Container([
         dbc.Row([
             theme_controls,
@@ -307,106 +310,78 @@ def main():
         dbc.Row([controls], style={'padding':3}),
         dbc.Row([collapse],style={'padding':3}),
         dbc.Row([tabs], style={'padding':3})
-
     ],
     fluid=True,
     class_name="dbc dbc-ag-grid",
     )
-    
-    """     [
-        html.Div(children='Tabular Split Data'),
-        dash_table.DataTable(
-            id='table',
-            data=df.to_dict('records'),
-            style_header={
-                # 'backgroundColor': 'rgb(30, 30, 30)',
-                # 'color': 'white',
-                # 'font-family':'Arial',
-                # 'font-weight':'bold',
-                'overflow':'hidden',
-                'overflow-wrap':'break-word',
-                'maxWidth':0,
-                'height':'auto',
-                },
-            style_data={
-                # 'backgroundColor': 'rgb(50, 50, 50)',
-                # 'color': 'white',
-                # 'font-family':'Arial',
-                'whiteSpace': 'per-line',
-                'width':'auto',
-                'overflow-wrap':'normal',
-                'height':'auto',
-                'lineHeight': '3px'
-            },
-            columns=[{'id': c, 'name': c, 'presentation':'markdown'} for c in df.columns],
-            # # page_size=20,
-            style_cell={
-                'overflow-x':'hidden',
-                'overflow-y':'visible',
-                'textOverflow':'ellipsis',
-                # 'maxWidth':0,
-                'textAlign':'left'
-            }
-            )
-            
-        ] """
     # endregion
     
-    app.run(debug=True)
+    app.run(debug=DEBUG)
     print('Successfully reached the end of main -----------------------------------------------------------------------')
 
 # region Callbacks ----------------------------------------------------------------------------------------------------
 @callback(
-    Output("line-chart", "figure" ),
-    Output("scatter-chart", "figure"),
-    Output("grid", "dashGridOptions"),
-    Input("indicator", "value"),
-    Input("continents", "value"),
+    #Output("line-chart", "figure" ),
+    #Output("scatter-chart", "figure"),
+    # Output("grid", "dashGridOptions"),
+    #Output('debug-text','children'),
+    Output('year-select', 'value'),
+    Output('grid','rowData'),
+    Input('year-select', 'value'),
+    #Input("continents", "value"),
     #Input("years", "value"),
     State(ThemeChangerAIO.ids.radio("theme"), "value"),
     State("switch", "value"),
 )
-def update(indicator, continent, yrs, theme, color_mode_switch_on):
+def update(year_select, theme, color_mode_switch_on): #continent, yrs,
+    global years, df
+    print(f'Callback initiated:\nyear_select = {year_select}\ntheam = {theme}\ncolor_mode_switch = {color_mode_switch_on}', flush=False)
 
-    if continent == [] or indicator is None:
-        return {}, {}, {}
+    if year_select is None:
+        year_select = max(years)
+        print(f'New year assigned = {year_select}')
+
+    # if continent == [] or year_select is None:
+    #     return {}, {}, {}
 
     theme_name = template_from_url(theme)
     template_name = theme_name if color_mode_switch_on else theme_name + "_dark"
 
-    dff = df[df.year.between(yrs[0], yrs[1])]
-    dff = dff[dff.continent.isin(continent)]
+    # update dataFrame
+    df = get_raw_data(year_select).loc[:,'Overall Place':'Seadrift']
+    # dff = df[df.year.between(yrs[0], yrs[1])]
+    # dff = dff[dff.continent.isin(continent)]
 
-    fig = px.line(
-        dff,
-        x="year",
-        y=indicator,
-        color="continent",
-        line_group="country",
-        template=template_name
-    )
+    # fig = px.line(
+    #     dff,
+    #     x="year",
+    #     y=year_select,
+    #     color="continent",
+    #     line_group="country",
+    #     template=template_name
+    # )
 
-    fig_scatter = px.scatter(
-        dff[dff.year == yrs[0]],
-        x="gdpPercap",
-        y="lifeExp",
-        size="pop",
-        color="continent",
-        log_x=True,
-        size_max=60,
-        template=template_name,
-        title="Gapminder %s: %s theme" % (yrs[1], template_name),
-    )
+    # fig_scatter = px.scatter(
+    #     dff[dff.year == yrs[0]],
+    #     x="gdpPercap",
+    #     y="lifeExp",
+    #     size="pop",
+    #     color="continent",
+    #     log_x=True,
+    #     size_max=60,
+    #     template=template_name,
+    #     title="Gapminder %s: %s theme" % (yrs[1], template_name),
+    # )
 
-    grid.Data = get_raw_data(year=continent).loc[:,'Overall Place':'Seadrift'].to_dict('records')
+    # grid.Data = get_raw_data(year=continent).loc[:,'Overall Place':'Seadrift'].to_dict('records')
 
-    grid_filter = f"{continent}.includes(params.data.continent) && params.data.year >= {yrs[0]} && params.data.year <= {yrs[1]}"
-    dashGridOptions = {
-        "isExternalFilterPresent": {"function": "true"},
-        "doesExternalFilterPass": {"function": grid_filter},
-    }
+    # grid_filter = f"{continent}.includes(params.data.continent) && params.data.year >= {yrs[0]} && params.data.year <= {yrs[1]}"
+    # dashGridOptions = {
+    #     "isExternalFilterPresent": {"function": "true"},
+    #     "doesExternalFilterPass": {"function": grid_filter},
+    # }
 
-    return fig, fig_scatter, dashGridOptions
+    return year_select, df.to_dict("records") #f'Callback initiated:\nyear_select = {year_select}' # fig, fig_scatter, dashGridOptions
 
 
 # updates the Bootstrap global light/dark color mode

@@ -10,6 +10,7 @@ import gpxpy
 import gpxpy.gpx
 
 from math import radians, cos, sin, asin, sqrt
+import os
 # endregion imports ---------------------------------------------------------------------------------------------------
 
 
@@ -26,6 +27,7 @@ dbc_css = "https://cdn.jsdelivr.net/gh/AnnMarieW/dash-bootstrap-templates/dbc.mi
 external_stylesheets = [dbc.themes.SOLAR, dbc.icons.FONT_AWESOME, dbc_css]
 app = Dash(external_stylesheets=external_stylesheets)
 year = 2024
+years = os.listdir('data\\split_data\\')
 data: pd.DataFrame
 # endregion globals ---------------------------------------------------------------------------------------------------
 
@@ -36,7 +38,7 @@ def get_raw_data(year: int) -> pd.DataFrame:
     # This method reads the CSV split spreadsheet data as downloaded from https://www.texaswatersafari.org/
 
     # Read the data CSV file
-    file_str = 'Data/' + str(year) + '/' + str(year) + '.csv'
+    file_str = 'Data\\split_data\\' + str(year) + '/' + str(year) + '.csv'
     df = pd.read_csv(file_str, sep=',', header=6)
 
     # Rename some columns. This is needed because the headers titles in the CSV do not align with the values (Why TWS?!?!).
@@ -80,6 +82,10 @@ def get_raw_data(year: int) -> pd.DataFrame:
 
     # Convert Boat Number to Int
     df['Boat #'] = df['Boat #'].astype(int)
+
+    # Format newlines for plotly to recognize
+    df['Team Members'] = df['Team Members'].str.replace('\n\n', '\n')
+    df['Team Members'] = df['Team Members'].str.replace('\n', '; ')
 
     print('Exit: get_raw_data ---------------\n')
     return df
@@ -195,17 +201,9 @@ for row in TWS_CHECKPOINTS.axes[0]:
 
 # Sort ascending milage
 TWS_CHECKPOINTS = TWS_CHECKPOINTS.sort_values('Milage')
-print(TWS_CHECKPOINTS)
 
 # Get the Raw Results Data
-data = get_raw_data(year=year)
-
-# Format newlines for plotly to recognize
-data['Team Members'] = data['Team Members'].str.replace('\n\n', '\n')
-data['Team Members'] = data['Team Members'].str.replace('\n', '; ')
-
-
-df = data.loc[:,'Overall Place':'Seadrift']
+df = get_raw_data(year=year).loc[:,'Overall Place':'Seadrift']
 # endregion -----------------------------------------------------------------------------------------------------------
 
 
@@ -226,9 +224,9 @@ theme_controls = html.Div(
 
 dropdown = html.Div(
     [
-        dbc.Label("Select indicator (y-axis)"),
+        dbc.Label("Select Year"),
         dcc.Dropdown(
-            ["element1", "element2", "element3"],
+            years,
             "pop",
             id="indicator",
             clearable=False,
@@ -255,19 +253,43 @@ grid = dag.AgGrid(
     style={'--ag-grid-size': 3,
            '--ag-row-height':3},
 )
-table = dash_table.DataTable(
-    id='table',
-    data=df.to_dict('records'),
-    style_header={
-
-    }
+collapse = html.Div(
+    [
+        dbc.Button(
+            "Tabular Data",
+            id="collapse-button",
+            className="mb-3",
+            color="primary",
+            n_clicks=0,
+        ),
+        dbc.Collapse(
+            grid,
+            id="collapse",
+            is_open=False,
+        ),
+    ]
 )
+
+
 # region Tabs
-tab1 = dbc.Tab([grid], 
-               label='Tabular Splits', 
+tab1 = dbc.Tab([], 
+               label='Animation', 
                class_name='h-4'
                )
-tabs = dbc.Card(dbc.Tabs([tab1]))
+tab2 = dbc.Tab([], 
+               label='Split Times', 
+               class_name='h-4'
+               )
+tab3 = dbc.Tab([], 
+               label='River Flow Data', 
+               class_name='h-4'
+               )
+tab4 = dbc.Tab([], 
+               label='Normalized Split Times', 
+               class_name='h-4'
+               )
+
+tabs = dbc.Card(dbc.Tabs([tab1, tab2, tab3, tab4]))
 # endregion
 # endregion -----------------------------------------------------------------------------------------------------------
 
@@ -283,6 +305,7 @@ def main():
             html.Div('Texas Water Safari Results', className='text-primary text-center fs-3')
         ]),
         dbc.Row([controls], style={'padding':3}),
+        dbc.Row([collapse],style={'padding':3}),
         dbc.Row([tabs], style={'padding':3})
 
     ],
@@ -339,7 +362,7 @@ def main():
     Output("grid", "dashGridOptions"),
     Input("indicator", "value"),
     Input("continents", "value"),
-    Input("years", "value"),
+    #Input("years", "value"),
     State(ThemeChangerAIO.ids.radio("theme"), "value"),
     State("switch", "value"),
 )
@@ -375,6 +398,7 @@ def update(indicator, continent, yrs, theme, color_mode_switch_on):
         title="Gapminder %s: %s theme" % (yrs[1], template_name),
     )
 
+    grid.Data = get_raw_data(year=continent).loc[:,'Overall Place':'Seadrift'].to_dict('records')
 
     grid_filter = f"{continent}.includes(params.data.continent) && params.data.year >= {yrs[0]} && params.data.year <= {yrs[1]}"
     dashGridOptions = {
@@ -397,6 +421,16 @@ clientside_callback(
     Input("switch", "value"),
 )
 
+
+@app.callback(
+    Output("collapse", "is_open"),
+    [Input("collapse-button", "n_clicks")],
+    [State("collapse", "is_open")],
+)
+def toggle_collapse(n, is_open):
+    if n:
+        return not is_open
+    return is_open
 
 # This callback makes updating figures with the new theme much faster
 # @callback(

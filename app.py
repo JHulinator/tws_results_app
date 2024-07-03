@@ -5,6 +5,7 @@ import dash_ag_grid as dag
 from dash_bootstrap_templates import ThemeChangerAIO, template_from_url
 
 import pandas as pd
+import numpy as np
 
 import gpxpy
 import gpxpy.gpx
@@ -87,6 +88,18 @@ def get_raw_data(year: int) -> pd.DataFrame:
     # Format newlines for plotly to recognize
     df['Team Members'] = df['Team Members'].str.replace('\n\n', '\n')
     df['Team Members'] = df['Team Members'].str.replace('\n', '; ')
+
+    # Create columns with formatted split times: time_of_day, total_time, split_time
+    cp_cols = df.iloc[:,4:-3].columns.to_list()
+    day_dict = {1:'Sat', 2:'Sun', 3:'Mon', 4:'Tue', 5:'Wed'}
+    print(cp_cols)
+    for i, name in enumerate(cp_cols):
+        df[f'{name}_TOD'] = df[name].apply(lambda x: f'{day_dict.setdefault(1+x.days+1*(divmod(x.seconds, 3600)[0]>15))} {9+divmod(x.seconds, 3600)[0]}:{divmod(divmod(x.seconds, 3600)[1], 60)[0]}')
+        df[f'{name}_TT'] = df[name].apply(lambda x: f'{divmod(x.seconds, 3600)[0] + 24*x.days}:{divmod(divmod(x.seconds, 3600)[1], 60)[0]}:{divmod(divmod(x.seconds, 3600)[1], 60)[1]}') #.astype(str)
+        if i == 0:
+            df[f'{name}_ST'] = df[f'{name}_TT']
+        else:
+            df[f'{name}_ST'] = (df[name] - df[cp_cols[i-1]]).apply(lambda x: f'{divmod(x.seconds, 3600)[0] + 24*x.days}:{divmod(divmod(x.seconds, 3600)[1], 60)[0]}:{divmod(divmod(x.seconds, 3600)[1], 60)[1]}')
 
     print('Exit: get_raw_data ---------------\n')
     return df
@@ -184,6 +197,12 @@ def get_speed(point1:gpxpy.gpx.GPXTrackPoint, point2:gpxpy.gpx.GPXTrackPoint) ->
 def get_miles_from_start(latitude:float, longitude:float) -> float:
     to_finish = get_milage_to_finish(latitude=latitude, longitude=longitude)
     return TWS_TOTAL_MILES - to_finish
+
+
+def str_to_hours(str_series:pd.Series) -> pd.Series:
+    df = pd.DataFrame.from_dict(dict(zip(str_series.str.split(':').index, str_series.str.split(':').values))).T
+    return_series = pd.to_numeric(df.iloc[:,0], errors='coerce').fillna(0) + pd.to_numeric(df.iloc[:,1], errors='coerce').fillna(0)/60 + pd.to_numeric(df.iloc[:,2], errors='coerce').fillna(0)/3600
+    return return_series
 # endregion -----------------------------------------------------------------------------------------------------------
 
 
@@ -204,7 +223,15 @@ for row in TWS_CHECKPOINTS.axes[0]:
 TWS_CHECKPOINTS = TWS_CHECKPOINTS.sort_values('Milage')
 
 # Get the Raw Results Data
-df = get_raw_data(year=year).loc[:,'Overall Place':'Seadrift']
+df = get_raw_data(year=year)
+
+# add split speeds
+cp_names = df.loc[:, ~df.columns.str.contains('_')].iloc[:,4:-3].columns.to_list()
+for i, name in enumerate(cp_names):
+    m = TWS_CHECKPOINTS.loc[name, 'Milage'] - TWS_CHECKPOINTS['Milage'].iloc[i]
+    h = str_to_hours(df[f'{name}_ST']) # int(df[f'{name}_ST'].str.split(':')[0]) + int(df[f'{name}_ST'].str.split(':')[1])/60 + int(df[f'{name}_ST'].str.split(':')[2]) / 3600 
+    df[f'{name}_S'] = m / h #.replace([np.inf, -np.inf], 0, inplace=True)
+    df[f'{name}_S'].loc[df[f'{name}_S'] == np.inf] = 0.0
 # endregion -----------------------------------------------------------------------------------------------------------
 
 
@@ -228,28 +255,46 @@ dropdown = html.Div(
         dbc.Label("Select Year"),
         dcc.Dropdown(
             options=years,
-            value=year,
-            placeholder=str(year),
+            value=str(year),
             id='year-select',
             clearable=False,
         ),
     ],
     className='mb-4',
 )
+dropdown2 = html.Div(
+    [
+        dbc.Label('Data Display Options'),
+        dcc.Dropdown(
+            options=['Time of day', 'Total time', 'Split time', 'Speed'],
+            value='Time of day',
+            id='data-display',
+            clearable=False,
+        )
+    ],
+    className='mb-4'
+)
 
 # This is the card that contains the controls
 controls = dbc.Card(
-    [dropdown],
+    dbc.Container([
+        dbc.Row([
+            dbc.Col([dropdown]), 
+            dbc.Col([dropdown2])
+        ])
+    ]),
+    # [dropdown, dropdown2],
     body=True
 )
+cols = df.loc[:, ~df.columns.str.contains('_')].iloc[:,:-3].columns.to_list()
 grid = dag.AgGrid(
     id="grid",
     columnDefs=[{"field": f,
                  'filter':(i<=3),
                  'wrapText':(i==2),
                  "autoHeight": True
-                 } for i, f in enumerate(df.columns)],
-    rowData=df.to_dict("records"),
+                 } for i, f in enumerate(cols)],
+    rowData=df.loc[:,'Overall Place':'Boat #'].to_dict("records"),
     defaultColDef={"flex": 1, "minWidth": 50, "sortable": False, "resizable": True},
     dashGridOptions={"rowSelection":"multiple"},
     style={'--ag-grid-size': 3,
@@ -309,7 +354,7 @@ def main():
         ]),
         dbc.Row([controls], style={'padding':3}),
         dbc.Row([collapse],style={'padding':3}),
-        dbc.Row([tabs], style={'padding':3})
+        dbc.Row([tabs], style={'padding':3},align='stretch')
     ],
     fluid=True,
     class_name="dbc dbc-ag-grid",
@@ -325,21 +370,28 @@ def main():
     #Output("scatter-chart", "figure"),
     # Output("grid", "dashGridOptions"),
     #Output('debug-text','children'),
-    Output('year-select', 'value'),
+    # Output('year-select', 'value'),
     Output('grid','rowData'),
     Input('year-select', 'value'),
+    Input('data-display', 'value'),
     #Input("continents", "value"),
     #Input("years", "value"),
     State(ThemeChangerAIO.ids.radio("theme"), "value"),
     State("switch", "value"),
+    #State('data-display')
 )
-def update(year_select, theme, color_mode_switch_on): #continent, yrs,
+def update_data_table(year_select, theme, color_mode_switch_on, display_type): #continent, yrs,
     global years, df
-    print(f'Callback initiated:\nyear_select = {year_select}\ntheam = {theme}\ncolor_mode_switch = {color_mode_switch_on}', flush=False)
+    print(f'Callback initiated:\n\
+            year_select = {year_select}\n',
+            #theam = {theme}\n\
+            #color_mode_switch = {color_mode_switch_on}',
+            flush=False
+        )
 
-    if year_select is None:
-        year_select = max(years)
-        print(f'New year assigned = {year_select}')
+    # if year_select is None:
+    #     year_select = max(years)
+    #     print(f'New year assigned = {year_select}')
 
     # if continent == [] or year_select is None:
     #     return {}, {}, {}
@@ -348,7 +400,8 @@ def update(year_select, theme, color_mode_switch_on): #continent, yrs,
     template_name = theme_name if color_mode_switch_on else theme_name + "_dark"
 
     # update dataFrame
-    df = get_raw_data(year_select).loc[:,'Overall Place':'Seadrift']
+    df = get_raw_data(year_select)
+
     # dff = df[df.year.between(yrs[0], yrs[1])]
     # dff = dff[dff.continent.isin(continent)]
 
@@ -381,7 +434,7 @@ def update(year_select, theme, color_mode_switch_on): #continent, yrs,
     #     "doesExternalFilterPass": {"function": grid_filter},
     # }
 
-    return year_select, df.to_dict("records") #f'Callback initiated:\nyear_select = {year_select}' # fig, fig_scatter, dashGridOptions
+    return df.to_dict("records") #f'Callback initiated:\nyear_select = {year_select}' # fig, fig_scatter, dashGridOptions
 
 
 # updates the Bootstrap global light/dark color mode

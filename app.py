@@ -1,4 +1,6 @@
 # region Imports ------------------------------------------------------------------------------------------------------
+import warnings
+warnings.simplefilter(action='ignore') # , category=FutureWarning
 from dash import Dash, html, dash_table, dcc, Input, Output, State, callback, Patch, clientside_callback
 import dash_bootstrap_components as dbc
 import dash_ag_grid as dag
@@ -35,74 +37,12 @@ data: pd.DataFrame
 
 
 # region helper methods -----------------------------------------------------------------------------------------------
-def get_raw_data(year: int) -> pd.DataFrame:
-    print('Enter: get_raw_data ---------------\n')
-    # This method reads the CSV split spreadsheet data as downloaded from https://www.texaswatersafari.org/
-
-    # Read the data CSV file
-    file_str = 'Data\\split_data\\' + str(year) + '/' + str(year) + '.csv'
-    df = pd.read_csv(file_str, sep=',', header=6)
-
-    # Rename some columns. This is needed because the headers titles in the CSV do not align with the values (Why TWS?!?!).
-    # Start with the colum named 'Staples' and iterate through the data columns
-    for n in range(df.columns.get_loc('Staples'), 30, 2): 
-        df = df.rename(columns={df.columns[n]:'Unnamed', df.columns[n+1]:df.columns[n]})
-
-    # The CSV file has a lot of empty cells (for excel hell formatting). We are now going to get rid of these
-    # meaningless cells.
-    df.drop(df.columns[df.columns.str.contains('Unnamed',case = False)],axis = 1, inplace = True) # This Drops all the unnamed columns
-    df.iloc[:, 4:] = df.iloc[:, 4:].shift(-2) # This shifts the time data up so that total cumulative time is aligned with team info line. This will be the only data that is kept
-    df = df[df[df.columns[0]].notna()] # This drops all the rows that don't have info in the first column
-    df.reset_index(drop=True, inplace=True) # This resets the index of the rows that are left
+def str_to_hours(str_series:pd.Series) -> pd.Series:
+    df = pd.DataFrame.from_dict(dict(zip(str_series.str.split(':').index, str_series.str.split(':').values))).T
+    return_series = pd.to_numeric(df.iloc[:,0], errors='coerce').fillna(0) + pd.to_numeric(df.iloc[:,1], errors='coerce').fillna(0)/60 + pd.to_numeric(df.iloc[:,2], errors='coerce').fillna(0)/3600
+    return return_series
 
 
-    # The Time data columns are of type object, so hear we convert them to timedelta type
-    # df.iloc[:, 4:] = df.iloc[:, 4:].astype('string') # First convirt them to type = string
-    for col in range(4, len(df.columns)): # Iterate through all time data columns
-        # Change each time column form type string to timedelta
-        df.iloc[:, col] = pd.to_timedelta(df.iloc[:,col], errors='coerce')
-
-
-    # Add columns containing the boat class and special designation (if any) for each team
-    df['Recognition'] = df['Recognition'].str.split(' ', n=1).str[1]
-    df['Class'] = df['Recognition'].str.split('\n|\r', n=1, regex=True).str[0]
-
-    df['Class'] = df['Class'].str.replace(r"^ +| +$", r'', regex=True) #.strip()
-    df['Class'] = df['Class'].str.replace('C-2','USCA C-2', regex=False) #df.loc[df['Class'] == 'C-2', 'Class'] = 'USCA C-2'
-    df['Class'] = df['Class'].str.replace('C-1 Man','USCA C-1 Man', regex=False) # df.loc[df['Class'] == 'C-1 Man', 'Class'] = 'USCA C-1 Man'
-    df['Class'] = df['Class'].str.replace('USCA USCA','USCA', regex=False)
-    df['Class'] = df['Class'].str.replace('Unlimited Man','Solo Unlimited Man', regex=False) # df.loc[df['Class'] == 'Unlimited Man', 'Class'] = 'Solo Unlimited Man'
-    df['Class'] = df['Class'].str.replace('Solo Solo','Solo', regex=False)
-    
-
-    #Split out competitors and team captions
-    df[['Competitors', 'Team Captions']] = pd.DataFrame(df['Team Members'].str.split(pat='TC ', n=1 , regex=True).to_list(), index=df.index)
-
-    # Convert str to list of str
-    df['Competitors'] = df['Competitors'].str.replace('\n{2,}', '').str.split('\r\n', regex=True)
-    df['Team Captions'] = df['Team Captions'].str.replace('TC |\n{2,}', '').str.split('\r\n',regex=True)
-
-    # Convert Boat Number to Int
-    df['Boat #'] = df['Boat #'].astype(int)
-
-    # Format newlines for plotly to recognize
-    df['Team Members'] = df['Team Members'].str.replace('\n\n', '\n')
-    df['Team Members'] = df['Team Members'].str.replace('\n', '; ')
-
-    # Create columns with formatted split times: time_of_day, total_time, split_time
-    cp_cols = df.iloc[:,4:-3].columns.to_list()
-    day_dict = {1:'Sat', 2:'Sun', 3:'Mon', 4:'Tue', 5:'Wed'}
-    print(cp_cols)
-    for i, name in enumerate(cp_cols):
-        df[f'{name}_TOD'] = df[name].apply(lambda x: f'{day_dict.setdefault(1+x.days+1*(divmod(x.seconds, 3600)[0]>15))} {9+divmod(x.seconds, 3600)[0]}:{divmod(divmod(x.seconds, 3600)[1], 60)[0]}')
-        df[f'{name}_TT'] = df[name].apply(lambda x: f'{divmod(x.seconds, 3600)[0] + 24*x.days}:{divmod(divmod(x.seconds, 3600)[1], 60)[0]}:{divmod(divmod(x.seconds, 3600)[1], 60)[1]}') #.astype(str)
-        if i == 0:
-            df[f'{name}_ST'] = df[f'{name}_TT']
-        else:
-            df[f'{name}_ST'] = (df[name] - df[cp_cols[i-1]]).apply(lambda x: f'{divmod(x.seconds, 3600)[0] + 24*x.days}:{divmod(divmod(x.seconds, 3600)[1], 60)[0]}:{divmod(divmod(x.seconds, 3600)[1], 60)[1]}')
-
-    print('Exit: get_raw_data ---------------\n')
-    return df
 
 def haversine(lon1: float, lat1 :float, lon2 :float, lat2 :float) -> float:
     """
@@ -199,14 +139,6 @@ def get_miles_from_start(latitude:float, longitude:float) -> float:
     return TWS_TOTAL_MILES - to_finish
 
 
-def str_to_hours(str_series:pd.Series) -> pd.Series:
-    df = pd.DataFrame.from_dict(dict(zip(str_series.str.split(':').index, str_series.str.split(':').values))).T
-    return_series = pd.to_numeric(df.iloc[:,0], errors='coerce').fillna(0) + pd.to_numeric(df.iloc[:,1], errors='coerce').fillna(0)/60 + pd.to_numeric(df.iloc[:,2], errors='coerce').fillna(0)/3600
-    return return_series
-# endregion -----------------------------------------------------------------------------------------------------------
-
-
-# region Data Set Up --------------------------------------------------------------------------------------------------
 # Calculate the total miles of the TWS course in the tws_race_route.gpx file
 TWS_TOTAL_MILES = get_track_len(TWS_ROUTE.tracks[0])
 
@@ -222,16 +154,92 @@ for row in TWS_CHECKPOINTS.axes[0]:
 # Sort ascending milage
 TWS_CHECKPOINTS = TWS_CHECKPOINTS.sort_values('Milage')
 
+def get_raw_data(year: int) -> pd.DataFrame:
+    # print('Enter: get_raw_data ---------------\n')
+    # This method reads the CSV split spreadsheet data as downloaded from https://www.texaswatersafari.org/
+
+    # Read the data CSV file
+    file_str = 'Data\\split_data\\' + str(year) + '/' + str(year) + '.csv'
+    df = pd.read_csv(file_str, sep=',', header=6)
+
+    # Rename some columns. This is needed because the headers titles in the CSV do not align with the values (Why TWS?!?!).
+    # Start with the colum named 'Staples' and iterate through the data columns
+    for n in range(df.columns.get_loc('Staples'), 30, 2): 
+        df = df.rename(columns={df.columns[n]:'Unnamed', df.columns[n+1]:df.columns[n]})
+
+    # The CSV file has a lot of empty cells (for excel hell formatting). We are now going to get rid of these
+    # meaningless cells.
+    df.drop(df.columns[df.columns.str.contains('Unnamed',case = False)],axis = 1, inplace = True) # This Drops all the unnamed columns
+    df.iloc[:, 4:] = df.iloc[:, 4:].shift(-2) # This shifts the time data up so that total cumulative time is aligned with team info line. This will be the only data that is kept
+    df = df[df[df.columns[0]].notna()] # This drops all the rows that don't have info in the first column
+    df.reset_index(drop=True, inplace=True) # This resets the index of the rows that are left
+
+
+    # The Time data columns are of type object, so hear we convert them to timedelta type
+    # df.iloc[:, 4:] = df.iloc[:, 4:].astype('string') # First convirt them to type = string
+    for col in range(4, len(df.columns)): # Iterate through all time data columns
+        # Change each time column form type string to timedelta
+        df.iloc[:, col] = pd.to_timedelta(df.iloc[:,col], errors='coerce')
+
+
+    # Add columns containing the boat class and special designation (if any) for each team
+    df['Recognition'] = df['Recognition'].str.split(' ', n=1).str[1]
+    df['Class'] = df['Recognition'].str.split('\n|\r', n=1, regex=True).str[0]
+
+    df['Class'] = df['Class'].str.replace(r"^ +| +$", r'', regex=True) #.strip()
+    df['Class'] = df['Class'].str.replace('C-2','USCA C-2', regex=False) #df.loc[df['Class'] == 'C-2', 'Class'] = 'USCA C-2'
+    df['Class'] = df['Class'].str.replace('C-1 Man','USCA C-1 Man', regex=False) # df.loc[df['Class'] == 'C-1 Man', 'Class'] = 'USCA C-1 Man'
+    df['Class'] = df['Class'].str.replace('USCA USCA','USCA', regex=False)
+    df['Class'] = df['Class'].str.replace('Unlimited Man','Solo Unlimited Man', regex=False) # df.loc[df['Class'] == 'Unlimited Man', 'Class'] = 'Solo Unlimited Man'
+    df['Class'] = df['Class'].str.replace('Solo Solo','Solo', regex=False)
+    
+
+    #Split out competitors and team captions
+    df[['Competitors', 'Team Captions']] = pd.DataFrame(df['Team Members'].str.split(pat='TC ', n=1 , regex=True).to_list(), index=df.index)
+
+    # Convert str to list of str
+    df['Competitors'] = df['Competitors'].str.replace('\n{2,}', '').str.split('\r\n', regex=True)
+    df['Team Captions'] = df['Team Captions'].str.replace('TC |\n{2,}', '').str.split('\r\n',regex=True)
+
+    # Convert Boat Number to Int
+    df['Boat #'] = df['Boat #'].astype(int)
+
+    # Format newlines for plotly to recognize
+    df['Team Members'] = df['Team Members'].str.replace('\n\n', '\n')
+    df['Team Members'] = df['Team Members'].str.replace('\n', '; ')
+
+    # Create columns with formatted split times: time_of_day, total_time, split_time
+    cp_cols = df.iloc[:,4:-3].columns.to_list()
+    day_dict = {1:'Sat', 2:'Sun', 3:'Mon', 4:'Tue', 5:'Wed'}
+    
+    for i, name in enumerate(cp_cols):
+        df[f'{name}_TOD'] = df[name].apply(lambda x: f'{day_dict.setdefault(1+x.days+1*(divmod(x.seconds, 3600)[0]>15))} {9+divmod(x.seconds, 3600)[0]}:{divmod(divmod(x.seconds, 3600)[1], 60)[0]}')
+        df[f'{name}_TT'] = df[name].apply(lambda x: f'{divmod(x.seconds, 3600)[0] + 24*x.days}:{divmod(divmod(x.seconds, 3600)[1], 60)[0]}:{divmod(divmod(x.seconds, 3600)[1], 60)[1]}') #.astype(str)
+        if i == 0:
+            df[f'{name}_ST'] = df[f'{name}_TT']
+        else:
+            df[f'{name}_ST'] = (df[name] - df[cp_cols[i-1]]).apply(lambda x: f'{divmod(x.seconds, 3600)[0] + 24*x.days}:{divmod(divmod(x.seconds, 3600)[1], 60)[0]}:{divmod(divmod(x.seconds, 3600)[1], 60)[1]}')
+        m = TWS_CHECKPOINTS.loc[name, 'Milage'] - TWS_CHECKPOINTS['Milage'].iloc[i]
+        h = str_to_hours(df[f'{name}_ST']) 
+        df[f'{name}_SS'] = m / h
+        df[f'{name}_SS'].loc[df[f'{name}_SS'] == np.inf] = 0.0
+    # print('Exit: get_raw_data ---------------\n')
+    return df
+# endregion -----------------------------------------------------------------------------------------------------------
+
+
+# region Data Set Up --------------------------------------------------------------------------------------------------
 # Get the Raw Results Data
 df = get_raw_data(year=year)
 
 # add split speeds
-cp_names = df.loc[:, ~df.columns.str.contains('_')].iloc[:,4:-3].columns.to_list()
-for i, name in enumerate(cp_names):
-    m = TWS_CHECKPOINTS.loc[name, 'Milage'] - TWS_CHECKPOINTS['Milage'].iloc[i]
-    h = str_to_hours(df[f'{name}_ST']) # int(df[f'{name}_ST'].str.split(':')[0]) + int(df[f'{name}_ST'].str.split(':')[1])/60 + int(df[f'{name}_ST'].str.split(':')[2]) / 3600 
-    df[f'{name}_S'] = m / h #.replace([np.inf, -np.inf], 0, inplace=True)
-    df[f'{name}_S'].loc[df[f'{name}_S'] == np.inf] = 0.0
+# cp_names = df.loc[:, ~df.columns.str.contains('_')].iloc[:,4:-3].columns.to_list()
+# for i, name in enumerate(cp_names):
+#     m = TWS_CHECKPOINTS.loc[name, 'Milage'] - TWS_CHECKPOINTS['Milage'].iloc[i]
+#     h = str_to_hours(df[f'{name}_ST']) # int(df[f'{name}_ST'].str.split(':')[0]) + int(df[f'{name}_ST'].str.split(':')[1])/60 + int(df[f'{name}_ST'].str.split(':')[2]) / 3600 
+#     df[f'{name}_SS'] = m / h #.replace([np.inf, -np.inf], 0, inplace=True)
+#     df[f'{name}_SS'].loc[df[f'{name}_SS'] == np.inf] = 0.0
+
 # endregion -----------------------------------------------------------------------------------------------------------
 
 
@@ -373,17 +381,18 @@ def main():
     # Output('year-select', 'value'),
     Output('grid','rowData'),
     Input('year-select', 'value'),
-    Input('data-display', 'value'),
+    # Input('data-display', 'value'),
     #Input("continents", "value"),
     #Input("years", "value"),
     State(ThemeChangerAIO.ids.radio("theme"), "value"),
     State("switch", "value"),
-    #State('data-display')
+    State('data-display', 'value')
 )
-def update_data_table(year_select, theme, color_mode_switch_on, display_type): #continent, yrs,
+def update_data_table(year_select,theme, color_mode_switch_on, display_as): #continent, yrs,
     global years, df
     print(f'Callback initiated:\n\
-            year_select = {year_select}\n',
+            year_select = {year_select}\n\
+            Display as: {display_as}',
             #theam = {theme}\n\
             #color_mode_switch = {color_mode_switch_on}',
             flush=False
@@ -401,6 +410,22 @@ def update_data_table(year_select, theme, color_mode_switch_on, display_type): #
 
     # update dataFrame
     df = get_raw_data(year_select)
+
+    col_list = list(df.iloc[:, :4].columns)
+    if display_as == 'Time of day':
+        key = '_TOD'
+    elif display_as == 'Total time':
+        key = '_TT'
+    elif display_as == 'Split time':
+        key = '_ST'
+    elif display_as == 'Speed': # Speed
+        key = '_SS'
+
+    col_list += list(df.loc[:, df.columns.str.contains(key)].columns.values)
+    print(col_list)
+    return_df = df.loc[:, col_list]
+    return_df.columns = return_df.columns.str.replace(key, '',)
+    print(return_df)
 
     # dff = df[df.year.between(yrs[0], yrs[1])]
     # dff = dff[dff.continent.isin(continent)]
@@ -434,7 +459,7 @@ def update_data_table(year_select, theme, color_mode_switch_on, display_type): #
     #     "doesExternalFilterPass": {"function": grid_filter},
     # }
 
-    return df.to_dict("records") #f'Callback initiated:\nyear_select = {year_select}' # fig, fig_scatter, dashGridOptions
+    return return_df.to_dict("records") #f'Callback initiated:\nyear_select = {year_select}' # fig, fig_scatter, dashGridOptions
 
 
 # updates the Bootstrap global light/dark color mode

@@ -1,15 +1,15 @@
 class,gender,hull lenght restriction,hull width restriction,rudder restriction,double blade restriction,maximum persons
-Unlimited,Male or Mixed,none,none,False,False,6
+Unlimited,Undefined,none,none,False,False,6
 Women's Unlimited,Female,none,none,False,False,6
-Tandem Unlimited,Male or Mixed,none,none,False,False,2
+Tandem Unlimited,Undefined,none,none,False,False,2
 Women's Tandem Unlimited,Female,none,none,False,False,2
 Men's Solo Unlimited,Male,none,none,False,False,1
 Women's Solo Unlimited,Female,none,none,False,False,1
-USCA C2,Male or Mixed,18.5,27,True,True,2
+USCA C2,Undefined,18.5,27,True,True,2
 Mens's USCA C1,Male,18.5,32,True,True,1
 Woman's USCA C1,Female,18.5,32,True,True,1
-Aluminum,Male or Mixed,17.33,none,True,True,2
-Standard,Male or Mixed,18,32.4,True,True,2
-Novice,Male or Mixed,17.33,none,True,True,2
+Aluminum,Undefined,17.33,none,True,True,2
+Standard,Undefined,18,32.4,True,True,2
+Novice,Undefined,17.33,none,True,True,2
 Woman's Novice,Female,17.33,none,True,True,2
 Mixed,Mixed,none,none,False,False,2

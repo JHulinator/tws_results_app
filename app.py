@@ -1,7 +1,7 @@
 # region Imports ------------------------------------------------------------------------------------------------------
 import warnings
 warnings.simplefilter(action='ignore') # , category=FutureWarning
-from dash import Dash, html, dash_table, dcc, Input, Output, State, callback, Patch, clientside_callback
+from dash import Dash, html, dash_table, dcc, Input, Output, State, callback, Patch, clientside_callback, ctx
 import dash_bootstrap_components as dbc
 import dash_ag_grid as dag
 from dash_bootstrap_templates import ThemeChangerAIO, template_from_url
@@ -17,6 +17,7 @@ import os
 import re
 from difflib import SequenceMatcher
 from os.path import exists
+from typing import List
 # endregion imports ---------------------------------------------------------------------------------------------------
 
 
@@ -26,6 +27,7 @@ TWS_ROUTE = gpxpy.parse(open('data\\tws_race_route.gpx', 'r'))
 TWS_TOTAL_MILES: float
 TWS_CHECKPOINTS: pd.DataFrame
 DEBUG = True
+CLASS_LIST = list(pd.read_csv('data\\class_list.csv', sep=',')['class'])
 
 # Global Variables
 # stylesheet with the .dbc class to style  dcc, DataTable and AG Grid components with a Bootstrap theme
@@ -168,13 +170,11 @@ def find_class(str_class:str) -> str:
     str_class = re.sub(r'^\d', '', str_class)
     str_class = str_class.replace('masters', '').replace('adultyouth', '').replace('adultchild', '')
     
-    # read the list of possible combinations
-    class_list = list(pd.read_csv('data\\class_list.csv', sep=',')['class'])
 
     # find the class that is the most similar to the string
     similarity_ratio = 0
     return_class = None
-    for cl in class_list:
+    for cl in CLASS_LIST:
         if SequenceMatcher(None, str_class, cl.lower()).ratio() > similarity_ratio:
             similarity_ratio = SequenceMatcher(None, str_class, cl.lower()).ratio()
             return_class = cl
@@ -259,7 +259,11 @@ def get_raw_data(year: int) -> pd.DataFrame:
 
     # Convert str to list of str
     df['Competitors'] = df['Competitors'].str.replace('\n{2,}', '').str.split('\r\n', regex=True)
+    df['Competitors'] = df['Competitors'].apply(lambda a: list(filter(None, list(a))))
     df['Team Captions'] = df['Team Captions'].str.replace('TC |\n{2,}', '').str.split('\r\n',regex=True)
+
+    # Add column for competitor count
+    df['Competitor count'] = df['Competitors'].apply(lambda x: len(x))
 
     # Convert Boat Number to Int
     df['Boat #'] = df['Boat #'].astype(int)
@@ -287,11 +291,21 @@ def get_raw_data(year: int) -> pd.DataFrame:
             h = str_to_hours(df[f'{name}_ST']) 
             df[f'{name}_SS'] = m / h
             df[f'{name}_SS'].loc[df[f'{name}_SS'] == np.inf] = 0.0
+    
+
+    # Add column for class place
+    df['Class Place'] = df['Recognition'].str.split(' ').apply(lambda a: a[0])
+    df['Class Place'] = df['Class Place'].str.replace(r'\D', '', regex=True)
+
+    # Add column for finish time
+    df['Hrs'] = df['Seadrift'].apply(lambda x: x.total_seconds()/3600)
+
+    
     # print('Exit: get_raw_data ---------------\n')
     return df
 
 
-def get_all_raw_data() -> pd.DataFrame():
+def get_all_raw_data() -> pd.DataFrame:
     print('Enter get all raw data ------------------')
     df = pd.DataFrame()
     for yr in years:
@@ -300,6 +314,53 @@ def get_all_raw_data() -> pd.DataFrame():
         df = pd.concat([df, yr_df], ignore_index=True, sort=False)
     print('Exit get all raw data -------------------')
     return df
+
+# def add_sufix(s, adder):
+#     return s + adder
+
+def filter_data(df:pd.DataFrame, disp_typ:str='Time of day', year_filter:List[int]=years, class_filter:List[str]=CLASS_LIST,
+                pos_filter:int=0, cl_pos_filter:int=0, gender_filter:List[str]=['Undefined', 'Male', 'Female', 'Mixed'],
+                count_filter:List[int]=[1,2,3,4,5,6], rudder_filter:bool=False, blade_filter:bool=False, 
+                masters_filter:bool=False, adult_youth_filter:bool=False, time_filter:List[float]=[0, 100]) -> pd.DataFrame:
+    
+    year_filter = list(map(int, year_filter)) # Convert to int if not already
+    if pos_filter == 0: pos_filter = np.inf
+    if cl_pos_filter == 0: cl_pos_filter = np.inf
+
+    filtered = df.loc[
+                (df['year'].isin(year_filter)) & 
+                (df['Class'].isin(class_filter)) & 
+                (pd.to_numeric(df['Overall Place'], errors='coerce') <= pos_filter) &
+                (pd.to_numeric(df['Class Place'], errors='coerce') <= cl_pos_filter) &
+                (df['Gender'].isin(gender_filter)) & 
+                (df['Competitor count'].isin(count_filter)) &
+                (~(rudder_filter & df['Rudder'])) &
+                (~(blade_filter & df['Double Blade'])) & 
+                (~(masters_filter & (masters_filter ^ df['Masters']))) & 
+                (~(adult_youth_filter & (adult_youth_filter ^ df['Adult Youth']))) &
+                ((df['Hrs'] >= time_filter[0]) & (df['Hrs'] <= time_filter[1]))
+                ]
+    cps = list(TWS_CHECKPOINTS.axes[0].values[1:])
+    # ['Time of day', 'Total time', 'Split time', 'Speed']
+    if disp_typ == 'Time of day':
+        key = '_TOD'
+    elif disp_typ == 'Total time':
+        key = '_TT'
+    elif disp_typ == 'Split time':
+        key = '_ST'
+    elif disp_typ == 'Speed':
+        key = '_S'
+    else:
+        key = ''
+
+    data_cols = [x + key for x in cps]
+    
+    cols = ['year', 'Overall Place', 'Team Members'] + data_cols
+    filtered = filtered.loc[:, cols]
+    print(dict(zip(cps, data_cols)))
+    filtered.rename(columns=dict(zip(data_cols, cps)), inplace=True)
+    filtered.reset_index(inplace=True, drop=True)
+    return filtered
 # endregion -----------------------------------------------------------------------------------------------------------
 
 
@@ -324,40 +385,161 @@ color_mode_switch =  html.Span(
         dbc.Label(className="fa fa-sun", html_for="switch"),
     ]
 )
-
 # The ThemeChangerAIO loads all 52  Bootstrap themed figure templates to plotly.io
 theme_controls = html.Div(
     [ThemeChangerAIO(aio_id="theme"), color_mode_switch],
     className="hstack gap-3 mt-2"
 )
 
-# Create a 
 years_ckb = dbc.Checklist(
-            options=[
-                # {"label": "Option 1", "value": 1},
-                # {"label": "Option 2", "value": 2},
-                # {"label": "Disabled Option", "value": 3, "disabled": True},
-                [dict(map(name, name)) for name in years]
-            ],
-            value=[1],
-            id="checklist-input",
+            options=[dict(zip(['label', 'value'], [name, name])) for name in reversed(years)],
+            value=[str(year)],
+            id='year-select',
+            style={'padding-left':10},
         )
-dropdown = html.Div(
-    [
-        dbc.Label("Select Year"),
-        # dcc.Dropdown(
-        #     options=years,
-        #     value=str(year),
-        #     id='year-select',
-        #     clearable=False,
-        # ),
-        dbc.DropdownMenu(
-            label='Select Year',
-            children=years_ckb,
-        )
+
+years_radio = dbc.RadioItems(
+    options=[
+        {'label':'Last Yr.', 'value':1},
+        {'label':'Last 5Yrs.', 'value':5, 'disabled': (len(years) <= 5)},
+        {'label':'Last 10Yrs.', 'value':10, 'disabled': (len(years) <= 10)},
+        {'label':'All', 'value':0}
     ],
-    className='mb-4',
+    id='year-multi-select',
+    # inline=True,
+    style={'padding-left':10},
+    value=1
 )
+
+year_filter = dbc.DropdownMenu(
+            id='yr-dropdown',
+            label='Year',
+            children=[
+                years_radio, # dbc.DropdownMenuItem(, id='multi-year', toggle=False),
+                dbc.DropdownMenuItem(divider=True),
+                years_ckb, # dbc.DropdownMenuItem(, id='single-year', toggle=False, active=False)
+                ],
+        )
+
+boat_class_filter = dbc.DropdownMenu(
+    label='Boat Class',
+    children=[
+        dbc.RadioItems(options=[{'label':'All', 'value':1}, {'label':'None', 'value':0}], value=1, style={'padding-left':10}),
+        dbc.DropdownMenuItem(divider=True),
+        dbc.Checklist(options=[dict(zip(['label', 'value'], [cl, cl])) for cl in CLASS_LIST], value=CLASS_LIST, style={'padding-left':10})
+    ],
+    # style={'padding':10}
+)
+overall_position_filter = dbc.DropdownMenu(
+    label='Overall Position',
+    children=[
+        dbc.RadioItems(
+            options=[
+                {'label':'All', 'value':0},
+                {'label':'Top 5', 'value':5},
+                {'label':'Top 10', 'value':10},
+                {'label':'Top 15', 'value':15},
+                {'label':'Top 20', 'value':20},
+                {'label':'First Quartile', 'value':25},
+                {'label':'Second Quartile', 'value':50},
+                {'label':'Third Quartile', 'value':75},
+            ],
+            style={'padding-left':10},
+            value=0
+        )
+    ]
+)
+
+class_position_filter = dbc.DropdownMenu(
+    label='Class Position',
+    children=[
+        dbc.RadioItems(
+            options=[
+                {'label':'All', 'value':0},
+                {'label':'Top 5', 'value':5},
+                {'label':'Top 10', 'value':10},
+                {'label':'Top 15', 'value':15},
+                {'label':'Top 20', 'value':20},
+                {'label':'First Quartile', 'value':25},
+                {'label':'Second Quartile', 'value':50},
+                {'label':'Third Quartile', 'value':75},
+            ],
+            style={'padding-left':10},
+            value=0
+        )
+    ]
+)
+min_hr = df['Hrs'].min()
+finis_time_filter = html.Div(
+    [
+        dbc.Label('Finish Time [Hr]'),
+        dcc.RangeSlider(min=min_hr, max=100.0, 
+                        value=[min_hr, 100],
+                        tooltip={"placement": "bottom", "always_visible": True}),
+    ],
+    className="mb-4"
+)
+
+gender_filter = dbc.DropdownMenu([
+    dbc.RadioItems(options=[{'label':'All', 'value':1}, {'label':'None', 'value':0}], value=1, style={'padding-left':10}),
+    dbc.DropdownMenuItem(divider=True),
+    dbc.Checklist(
+        options=[
+            {'label':'Undefined', 'value':'Undefined'},
+            {'label':'Male', 'value':'Male'},
+            {'label':'Female', 'value':'Female'},
+            {'label':'Mixed', 'value':'Mixed'},
+        ],
+        value=['Undefined', 'Male', 'Female', 'Mixed'],
+        style={'padding-left':10}
+    )],
+    label='Gender'
+)
+
+count_filter = dbc.DropdownMenu([
+    dbc.RadioItems(options=[{'label':'All', 'value':1}, {'label':'None', 'value':0}], value=1, style={'padding-left':10}),
+    dbc.DropdownMenuItem(divider=True),
+    dbc.Checklist(
+        options=[
+            {'label':'1', 'value':1},
+            {'label':'2', 'value':2},
+            {'label':'3', 'value':3},
+            {'label':'4', 'value':4},
+            {'label':'5', 'value':5},
+            {'label':'6', 'value':6},
+        ],
+        value=[1,2,3,4,5,6],
+        style={'padding-left':10},
+        inline=True,
+    )],
+    label='Competitor Count'
+)
+
+restriction_filter = html.Div(
+    [
+        dbc.Label('Restrictions',),
+        dbc.Checklist(
+            options=[
+                {"label": "Rudderless", "value": 1},
+                {"label": "Single Blade", "value": 2},
+            ],
+            switch=True,
+        ),
+    ],
+)
+recognition_filter = html.Div(
+    [
+        dbc.Label('Recognition',),
+        dbc.Checklist(
+            options=[
+                {"label": 'Masters', "value": 1},
+                {"label": 'Adult/Youth', "value": 2},
+            ],
+            switch=True,
+        ),
+    ],
+)
+
 dropdown2 = html.Div(
     [
         dbc.Label('Data Display Options'),
@@ -368,33 +550,50 @@ dropdown2 = html.Div(
             clearable=False,
         )
     ],
-    className='mb-4'
+    className='mb-4',
 )
 
 # This is the card that contains the controls
-controls = dbc.Card(
+controls = dbc.Card([
+    dbc.Label('Data Filters'),
     dbc.Container([
-        dbc.Row([
-            dbc.Col([dropdown]), 
-            dbc.Col([dropdown2])
-        ])
-    ]),
-    # [dropdown, dropdown2],
-    body=True
+        dbc.Row(children=dbc.Stack(
+            children=[year_filter, boat_class_filter, overall_position_filter, class_position_filter, gender_filter, count_filter],
+            direction='horizontal',
+            gap=3
+            ),
+        justify='start'
+        ),
+        dbc.Row(children=dbc.Stack(
+            children=[dropdown2, restriction_filter, recognition_filter, ],
+            direction='horizontal',
+            gap=5
+        ),
+        align='start'
+        ),
+        dbc.Row(children=finis_time_filter),
+    ])
+    ],
+    body=True,
 )
-cols = df.loc[:, ~df.columns.str.contains('_')].iloc[:,:-3].columns.to_list()
+# cols = ['Overall Place', 'Team Members'] + list(TWS_CHECKPOINTS.axes[0].values[1:])
+# print(filter_data(df=df,disp_typ='Time of day'))
+data = filter_data(df=df,disp_typ='Time of day')
 grid = dag.AgGrid(
     id="grid",
     columnDefs=[{"field": f,
-                 'filter':(i<=3),
+                 'filter':(i==2),
                  'wrapText':(i==2),
-                 "autoHeight": True
-                 } for i, f in enumerate(cols)],
-    rowData=df.loc[:,'Overall Place':'Boat #'].to_dict("records"),
-    defaultColDef={"flex": 1, "minWidth": 50, "sortable": False, "resizable": True},
+                 "autoHeight": True,
+                 'minWidth': 80 + (i==2)*360 - 40*((i==0)|(i==1))
+                 } for i, f in enumerate(data.columns)],
+    rowData= data.to_dict("records"), # df.loc[:,'Overall Place':'Boat #'].to_dict("records"),
+    defaultColDef={"flex": 1, "minWidth": 40, "sortable": False, "resizable": True,},
     dashGridOptions={"rowSelection":"multiple"},
     style={'--ag-grid-size': 3,
            '--ag-row-height':3},
+    columnSizeOptions={'skipHeader':True, 'keys':list(data.columns[3:].values)},
+    columnSize = 'sizeToFit'
 )
 collapse = html.Div(
     [
@@ -461,7 +660,7 @@ def main():
     print('Successfully reached the end of main -----------------------------------------------------------------------')
 
 # region Callbacks ----------------------------------------------------------------------------------------------------
-@callback(
+""" @callback(
     #Output("line-chart", "figure" ),
     #Output("scatter-chart", "figure"),
     # Output("grid", "dashGridOptions"),
@@ -547,7 +746,7 @@ def update_data_table(year_select,theme, color_mode_switch_on, display_as): #con
     #     "doesExternalFilterPass": {"function": grid_filter},
     # }
 
-    return return_df.to_dict("records") #f'Callback initiated:\nyear_select = {year_select}' # fig, fig_scatter, dashGridOptions
+    return return_df.to_dict("records") #f'Callback initiated:\nyear_select = {year_select}' # fig, fig_scatter, dashGridOptions """
 
 
 # updates the Bootstrap global light/dark color mode
@@ -562,7 +761,7 @@ clientside_callback(
     Input("switch", "value"),
 )
 
-
+# collapsing the data table
 @app.callback(
     Output("collapse", "is_open"),
     [Input("collapse-button", "n_clicks")],
@@ -573,35 +772,64 @@ def toggle_collapse(n, is_open):
         return not is_open
     return is_open
 
-# This callback makes updating figures with the new theme much faster
-# @callback(
-#     Output("line-chart", "figure", allow_duplicate=True ),
-#     Output("scatter-chart", "figure", allow_duplicate=True),
-#     Input(ThemeChangerAIO.ids.radio("theme"), "value"),
-#     Input("switch", "value"),
-#     prevent_initial_call=True,
-# )
-# def update_template(theme, color_mode_switch_on):
-#     theme_name = template_from_url(theme)
-#     template_name = theme_name if color_mode_switch_on else theme_name + "_dark"
 
-#     patched_figure = Patch()
-#     # When using Patch() to update the figure template, you must use the figure template dict
-#     # from plotly.io  and not just the template name
-#     patched_figure["layout"]["template"] = pio.templates[template_name]
-#     return patched_figure, patched_figure
+# Selecting the year
+@app.callback(
+    Output('year-multi-select', 'value'),
+    Output('year-select', 'value'), 
+    Input('year-select', 'value'),
+    Input('year-multi-select', 'value'),
+)
+def year_selected(selected_yrs, multi_value):
+    trigger_id = ctx.triggered_id
+    last5years = [years[i] for i in np.argsort(years)[-5:]]
+    last10years = [years[i] for i in np.argsort(years)[-10:]]
+    if trigger_id == 'year-select':
+        if selected_yrs == [max(years)]:
+            return 1, selected_yrs
+        elif len(selected_yrs) == 5 and set(selected_yrs) == set(last5years):
+            return 5, selected_yrs
+        elif len(selected_yrs) == 10 and set(selected_yrs) == set(last10years):
+            return 10, selected_yrs
+        elif set(selected_yrs) == set(years):
+            return 0, selected_yrs
+        else:
+            return -1, selected_yrs
+    elif trigger_id == 'year-multi-select':
+        if multi_value == 1:
+            return multi_value, [max(years)]
+        elif multi_value == 5:
+            return multi_value, last5years
+        elif multi_value == 10:
+            return multi_value, last10years
+        elif multi_value == 0:
+            return multi_value, years
+    else:
+        return multi_value, selected_yrs
 
-# # updates the Bootstrap global light/dark color mode
-# clientside_callback(
-#     """
-#     switchOn => {       
-#        document.documentElement.setAttribute('data-bs-theme', switchOn ? 'light' : 'dark');  
-#        return window.dash_clientside.no_update
-#     }
-#     """,
-#     Output("switch", "id"),
-#     Input("switch", "value"),
+
+# @app.callback(
+#     Output('year-select', 'value'),
+#     Input('year-multi-select', 'value'),
+#     State('year-select', 'value')
 # )
+# def mlti_year_select(multi_value, selected_yrs):
+#     if multi_value == 1:
+#         # Ensure that only the first year is selected
+#         if not selected_yrs == [max(years)]:
+#             # make them equal
+#             return [max(years)]
+#         else:
+#             pass
+#     elif multi_value == 5:
+#         pass
+#     elif multi_value == 10:
+#         pass
+#     elif multi_value == 0:
+#         pass
+#     else:
+#         pass
+
 
 # endregion -----------------------------------------------------------------------------------------------------------
 
@@ -613,4 +841,5 @@ if __name__ == '__main__':
 '''TODO
     * Add callback for data type selection
     * Fix speed calculations
+    * Fix C1 getting classified as C2
 '''

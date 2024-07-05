@@ -14,6 +14,9 @@ import gpxpy.gpx
 
 from math import radians, cos, sin, asin, sqrt
 import os
+import re
+from difflib import SequenceMatcher
+from os.path import exists
 # endregion imports ---------------------------------------------------------------------------------------------------
 
 
@@ -154,6 +157,62 @@ for row in TWS_CHECKPOINTS.axes[0]:
 # Sort ascending milage
 TWS_CHECKPOINTS = TWS_CHECKPOINTS.sort_values('Milage')
 
+def find_class(str_class:str) -> str:
+    '''----------------------------------------------------------------------------------------------------------------
+    This method interoperates the many class names recorded in the 'Recognition' column and returns a string matching
+    one of the 14 classed recognized by TWS per the webpage as of 7/4/24
+    ----------------------------------------------------------------------------------------------------------------'''
+    # remove and insignificant characters
+    str_class = str(str_class)
+    str_class = re.sub(r'\W|^\d|[3-9]', '', str_class.replace('1st ', '').replace('2nd ','').replace('3rd ', '').replace('th ', '').replace('0', '')).lower()
+    str_class = re.sub(r'^\d', '', str_class)
+    str_class = str_class.replace('masters', '').replace('adultyouth', '').replace('adultchild', '')
+    
+    # read the list of possible combinations
+    class_list = list(pd.read_csv('data\\class_list.csv', sep=',')['class'])
+
+    # find the class that is the most similar to the string
+    similarity_ratio = 0
+    return_class = None
+    for cl in class_list:
+        if SequenceMatcher(None, str_class, cl.lower()).ratio() > similarity_ratio:
+            similarity_ratio = SequenceMatcher(None, str_class, cl.lower()).ratio()
+            return_class = cl
+
+    return return_class
+
+def find_gender(str_class:str) -> str:
+    df_class = pd.read_csv('data\\class_list.csv', sep=',', index_col='class')['gender']
+    return str(df_class.loc[str_class])
+
+def find_hull_ln(str_class:str) -> str:
+    df_class = pd.read_csv('data\\class_list.csv', sep=',', index_col='class')['hull lenght restriction']
+    return str(df_class.loc[str_class])
+
+def find_hull_width(str_class:str) -> str:
+    df_class = pd.read_csv('data\\class_list.csv', sep=',', index_col='class')['hull width restriction']
+    return str(df_class.loc[str_class])
+
+def is_rudder(str_class:str) -> bool:
+    df_class = pd.read_csv('data\\class_list.csv', sep=',', index_col='class')['rudder restriction']
+    return not bool(df_class.loc[str_class])
+
+def is_double_blade(str_class:str) -> bool:
+    df_class = pd.read_csv('data\\class_list.csv', sep=',', index_col='class')['double blade restriction']
+    return not bool(df_class.loc[str_class])
+
+def is_masters(str_recognition:str) -> bool:
+    str_class = str(str_recognition)
+    str_class = re.sub(r'\W|^\d|[3-9]', '', str_class.replace('1st ', '').replace('2nd ','').replace('3rd ', '').replace('th ', '').replace('0', '')).lower()
+    str_class = re.sub(r'^\d', '', str_class)
+    return ('masters' in str_class)
+
+def is_adult_youth(str_recognition:str) -> bool:
+    str_class = str(str_recognition)
+    str_class = re.sub(r'\W|^\d|[3-9]', '', str_class.replace('1st ', '').replace('2nd ','').replace('3rd ', '').replace('th ', '').replace('0', '')).lower()
+    str_class = re.sub(r'^\d', '', str_class)
+    return ('adult' in str_class)
+
 def get_raw_data(year: int) -> pd.DataFrame:
     # print('Enter: get_raw_data ---------------\n')
     # This method reads the CSV split spreadsheet data as downloaded from https://www.texaswatersafari.org/
@@ -182,16 +241,17 @@ def get_raw_data(year: int) -> pd.DataFrame:
         df.iloc[:, col] = pd.to_timedelta(df.iloc[:,col], errors='coerce')
 
 
-    # Add columns containing the boat class and special designation (if any) for each team
-    df['Recognition'] = df['Recognition'].str.split(' ', n=1).str[1]
-    df['Class'] = df['Recognition'].str.split('\n|\r', n=1, regex=True).str[0]
+    # Add columns containing the boat class
+    df['Class'] = df['Recognition'].apply(find_class)
+    df['Gender'] = df['Class'].apply(find_gender)
+    df['Max Boat Len'] = df['Class'].apply(find_hull_ln)
+    df['Min Boat Width'] = df['Class'].apply(find_hull_width)
+    df['Rudder'] = df['Class'].apply(is_rudder)
+    df['Double Blade'] = df['Class'].apply(is_double_blade)
 
-    df['Class'] = df['Class'].str.replace(r"^ +| +$", r'', regex=True) #.strip()
-    df['Class'] = df['Class'].str.replace('C-2','USCA C-2', regex=False) #df.loc[df['Class'] == 'C-2', 'Class'] = 'USCA C-2'
-    df['Class'] = df['Class'].str.replace('C-1 Man','USCA C-1 Man', regex=False) # df.loc[df['Class'] == 'C-1 Man', 'Class'] = 'USCA C-1 Man'
-    df['Class'] = df['Class'].str.replace('USCA USCA','USCA', regex=False)
-    df['Class'] = df['Class'].str.replace('Unlimited Man','Solo Unlimited Man', regex=False) # df.loc[df['Class'] == 'Unlimited Man', 'Class'] = 'Solo Unlimited Man'
-    df['Class'] = df['Class'].str.replace('Solo Solo','Solo', regex=False)
+    # Add column for any special recognitions
+    df['Masters'] = df['Recognition'].apply(is_masters)
+    df['Adult Youth'] = df['Recognition'].apply(is_adult_youth)
     
 
     #Split out competitors and team captions
@@ -209,37 +269,50 @@ def get_raw_data(year: int) -> pd.DataFrame:
     df['Team Members'] = df['Team Members'].str.replace('\n', '; ')
 
     # Create columns with formatted split times: time_of_day, total_time, split_time
-    cp_cols = df.iloc[:,4:-3].columns.to_list()
+    cp_cols = list(TWS_CHECKPOINTS.axes[0].values[1:])
     day_dict = {1:'Sat', 2:'Sun', 3:'Mon', 4:'Tue', 5:'Wed'}
     
+    last_cp = None
     for i, name in enumerate(cp_cols):
-        df[f'{name}_TOD'] = df[name].apply(lambda x: f'{day_dict.setdefault(1+x.days+1*(divmod(x.seconds, 3600)[0]>15))} {9+divmod(x.seconds, 3600)[0]}:{divmod(divmod(x.seconds, 3600)[1], 60)[0]}')
-        df[f'{name}_TT'] = df[name].apply(lambda x: f'{divmod(x.seconds, 3600)[0] + 24*x.days}:{divmod(divmod(x.seconds, 3600)[1], 60)[0]}:{divmod(divmod(x.seconds, 3600)[1], 60)[1]}') #.astype(str)
-        if i == 0:
-            df[f'{name}_ST'] = df[f'{name}_TT']
-        else:
-            df[f'{name}_ST'] = (df[name] - df[cp_cols[i-1]]).apply(lambda x: f'{divmod(x.seconds, 3600)[0] + 24*x.days}:{divmod(divmod(x.seconds, 3600)[1], 60)[0]}:{divmod(divmod(x.seconds, 3600)[1], 60)[1]}')
-        m = TWS_CHECKPOINTS.loc[name, 'Milage'] - TWS_CHECKPOINTS['Milage'].iloc[i]
-        h = str_to_hours(df[f'{name}_ST']) 
-        df[f'{name}_SS'] = m / h
-        df[f'{name}_SS'].loc[df[f'{name}_SS'] == np.inf] = 0.0
+        if name in df.columns:
+            df[f'{name}_TOD'] = df[name].apply(lambda x: f'{day_dict.setdefault(1+x.days+1*(divmod(x.seconds, 3600)[0]>15))} {9+divmod(x.seconds, 3600)[0]}:{divmod(divmod(x.seconds, 3600)[1], 60)[0]}')
+            df[f'{name}_TT'] = df[name].apply(lambda x: f'{divmod(x.seconds, 3600)[0] + 24*x.days}:{divmod(divmod(x.seconds, 3600)[1], 60)[0]}:{divmod(divmod(x.seconds, 3600)[1], 60)[1]}') #.astype(str)
+            if i == 0:
+                df[f'{name}_ST'] = df[f'{name}_TT']
+                last_cp = name
+            else:
+                df[f'{name}_ST'] = (df[name] - df[last_cp]).apply(lambda x: f'{divmod(x.seconds, 3600)[0] + 24*x.days}:{divmod(divmod(x.seconds, 3600)[1], 60)[0]}:{divmod(divmod(x.seconds, 3600)[1], 60)[1]}')
+                last_cp = name
+            m = TWS_CHECKPOINTS.loc[name, 'Milage'] - TWS_CHECKPOINTS['Milage'].iloc[i]
+            h = str_to_hours(df[f'{name}_ST']) 
+            df[f'{name}_SS'] = m / h
+            df[f'{name}_SS'].loc[df[f'{name}_SS'] == np.inf] = 0.0
     # print('Exit: get_raw_data ---------------\n')
+    return df
+
+
+def get_all_raw_data() -> pd.DataFrame():
+    print('Enter get all raw data ------------------')
+    df = pd.DataFrame()
+    for yr in years:
+        yr_df = get_raw_data(yr)
+        yr_df['year'] = yr
+        df = pd.concat([df, yr_df], ignore_index=True, sort=False)
+    print('Exit get all raw data -------------------')
     return df
 # endregion -----------------------------------------------------------------------------------------------------------
 
 
 # region Data Set Up --------------------------------------------------------------------------------------------------
 # Get the Raw Results Data
-df = get_raw_data(year=year)
+if exists('all_data.csv'):
+    df = pd.read_csv('all_data.csv', sep=',', index_col=0)
+else:
+    df = get_all_raw_data()
+    df.to_csv('all_data.csv')
 
-# add split speeds
-# cp_names = df.loc[:, ~df.columns.str.contains('_')].iloc[:,4:-3].columns.to_list()
-# for i, name in enumerate(cp_names):
-#     m = TWS_CHECKPOINTS.loc[name, 'Milage'] - TWS_CHECKPOINTS['Milage'].iloc[i]
-#     h = str_to_hours(df[f'{name}_ST']) # int(df[f'{name}_ST'].str.split(':')[0]) + int(df[f'{name}_ST'].str.split(':')[1])/60 + int(df[f'{name}_ST'].str.split(':')[2]) / 3600 
-#     df[f'{name}_SS'] = m / h #.replace([np.inf, -np.inf], 0, inplace=True)
-#     df[f'{name}_SS'].loc[df[f'{name}_SS'] == np.inf] = 0.0
-
+if DEBUG:
+    print(df)
 # endregion -----------------------------------------------------------------------------------------------------------
 
 
@@ -258,15 +331,30 @@ theme_controls = html.Div(
     className="hstack gap-3 mt-2"
 )
 
+# Create a 
+years_ckb = dbc.Checklist(
+            options=[
+                # {"label": "Option 1", "value": 1},
+                # {"label": "Option 2", "value": 2},
+                # {"label": "Disabled Option", "value": 3, "disabled": True},
+                [dict(map(name, name)) for name in years]
+            ],
+            value=[1],
+            id="checklist-input",
+        )
 dropdown = html.Div(
     [
         dbc.Label("Select Year"),
-        dcc.Dropdown(
-            options=years,
-            value=str(year),
-            id='year-select',
-            clearable=False,
-        ),
+        # dcc.Dropdown(
+        #     options=years,
+        #     value=str(year),
+        #     id='year-select',
+        #     clearable=False,
+        # ),
+        dbc.DropdownMenu(
+            label='Select Year',
+            children=years_ckb,
+        )
     ],
     className='mb-4',
 )
@@ -521,3 +609,8 @@ def toggle_collapse(n, is_open):
 # Call the main method
 if __name__ == '__main__':
     main()
+
+'''TODO
+    * Add callback for data type selection
+    * Fix speed calculations
+'''

@@ -1,7 +1,7 @@
 # region Imports ------------------------------------------------------------------------------------------------------
 import warnings
 warnings.simplefilter(action='ignore') # , category=FutureWarning
-from dash import Dash, html, dash_table, dcc, Input, Output, State, callback, Patch, clientside_callback, ctx
+from dash import Dash, html, dash_table, dcc, Input, Output, State, callback, Patch, clientside_callback, ctx, set_props
 import dash_bootstrap_components as dbc
 import dash_ag_grid as dag
 from dash_bootstrap_templates import ThemeChangerAIO, template_from_url
@@ -357,7 +357,7 @@ def filter_data(df:pd.DataFrame, disp_typ:str='Time of day', year_filter:List[in
     
     cols = ['year', 'Overall Place', 'Team Members'] + data_cols
     filtered = filtered.loc[:, cols]
-    print(dict(zip(cps, data_cols)))
+    
     filtered.rename(columns=dict(zip(data_cols, cps)), inplace=True)
     filtered.reset_index(inplace=True, drop=True)
     return filtered
@@ -394,7 +394,7 @@ theme_controls = html.Div(
 years_ckb = dbc.Checklist(
             options=[dict(zip(['label', 'value'], [name, name])) for name in reversed(years)],
             value=[str(year)],
-            id='year-select',
+            id='year_filter',
             style={'padding-left':10},
         )
 
@@ -426,7 +426,10 @@ boat_class_filter = dbc.DropdownMenu(
     children=[
         dbc.RadioItems(options=[{'label':'All', 'value':1}, {'label':'None', 'value':0}], value=1, style={'padding-left':10}),
         dbc.DropdownMenuItem(divider=True),
-        dbc.Checklist(options=[dict(zip(['label', 'value'], [cl, cl])) for cl in CLASS_LIST], value=CLASS_LIST, style={'padding-left':10})
+        dbc.Checklist(options=[dict(zip(['label', 'value'], [cl, cl])) for cl in CLASS_LIST], value=CLASS_LIST,
+            style={'padding-left':10},
+            id='class_filter'
+        )
     ],
     # style={'padding':10}
 )
@@ -445,7 +448,8 @@ overall_position_filter = dbc.DropdownMenu(
                 {'label':'Third Quartile', 'value':75},
             ],
             style={'padding-left':10},
-            value=0
+            value=0,
+            id='pos_filter'
         )
     ]
 )
@@ -465,7 +469,8 @@ class_position_filter = dbc.DropdownMenu(
                 {'label':'Third Quartile', 'value':75},
             ],
             style={'padding-left':10},
-            value=0
+            value=0,
+            id='cl_pos_filter'
         )
     ]
 )
@@ -476,6 +481,7 @@ finis_time_filter = html.Div(
         dcc.RangeSlider(min=min_hr, max=100.0, 
                         value=[min_hr, 100],
                         tooltip={"placement": "bottom", "always_visible": True}),
+                        #id='f-time'
     ],
     className="mb-4"
 )
@@ -491,7 +497,8 @@ gender_filter = dbc.DropdownMenu([
             {'label':'Mixed', 'value':'Mixed'},
         ],
         value=['Undefined', 'Male', 'Female', 'Mixed'],
-        style={'padding-left':10}
+        style={'padding-left':10},
+        id='gender_filter'
     )],
     label='Gender'
 )
@@ -511,6 +518,7 @@ count_filter = dbc.DropdownMenu([
         value=[1,2,3,4,5,6],
         style={'padding-left':10},
         inline=True,
+        id='count_filter'
     )],
     label='Competitor Count'
 )
@@ -518,25 +526,15 @@ count_filter = dbc.DropdownMenu([
 restriction_filter = html.Div(
     [
         dbc.Label('Restrictions',),
-        dbc.Checklist(
-            options=[
-                {"label": "Rudderless", "value": 1},
-                {"label": "Single Blade", "value": 2},
-            ],
-            switch=True,
-        ),
+        dbc.Switch(label='Rudderless', id='rudder_filter', value=False),
+        dbc.Switch(label='Single Blade', id='blade_filter', value=False),
     ],
 )
 recognition_filter = html.Div(
     [
         dbc.Label('Recognition',),
-        dbc.Checklist(
-            options=[
-                {"label": 'Masters', "value": 1},
-                {"label": 'Adult/Youth', "value": 2},
-            ],
-            switch=True,
-        ),
+        dbc.Switch(label='Masters', id='masters_filter', value=False),
+        dbc.Switch(label='Adult/Youth', id='adult_youth_filter', value=False),
     ],
 )
 
@@ -546,7 +544,7 @@ dropdown2 = html.Div(
         dcc.Dropdown(
             options=['Time of day', 'Total time', 'Split time', 'Speed'],
             value='Time of day',
-            id='data-display',
+            id='disp_typ',
             clearable=False,
         )
     ],
@@ -665,15 +663,15 @@ def main():
     #Output("scatter-chart", "figure"),
     # Output("grid", "dashGridOptions"),
     #Output('debug-text','children'),
-    # Output('year-select', 'value'),
+    # Output('year_filter', 'value'),
     Output('grid','rowData'),
-    Input('year-select', 'value'),
-    # Input('data-display', 'value'),
+    Input('year_filter', 'value'),
+    # Input('disp_typ', 'value'),
     #Input("continents", "value"),
     #Input("years", "value"),
     State(ThemeChangerAIO.ids.radio("theme"), "value"),
     State("switch", "value"),
-    State('data-display', 'value')
+    State('disp_typ', 'value')
 )
 def update_data_table(year_select,theme, color_mode_switch_on, display_as): #continent, yrs,
     global years, df
@@ -775,43 +773,91 @@ def toggle_collapse(n, is_open):
 
 # Selecting the year
 @app.callback(
-    Output('year-multi-select', 'value'),
-    Output('year-select', 'value'), 
-    Input('year-select', 'value'),
+    Output('year-multi-select', 'value', allow_duplicate=False),
+    Output('year_filter', 'value'),
+    Output('grid', 'rowData'),
+    Input('year_filter', 'value'),
     Input('year-multi-select', 'value'),
+    State('disp_typ', 'value'),
+    State('class_filter', 'value'),
+    State('pos_filter', 'value'),
+    State('cl_pos_filter', 'value'),
+    State('gender_filter', 'value'),
+    State('count_filter', 'value'),
+    State('rudder_filter', 'value'),
+    State('blade_filter', 'value'),
+    State('masters_filter', 'value'),
+    State('adult_youth_filter', 'value'),
+    #State('f-', 'value'),# 9
+    # prevent_initial_call=True
 )
-def year_selected(selected_yrs, multi_value):
+def year_selected(selected_yrs, multi_value, disp_typ, class_filter,pos_filter, cl_pos_filter, gender_filter,count_filter, 
+                    rudder_filter, blade_filter, masters_filter, adult_youth_filter):
+    
+
     trigger_id = ctx.triggered_id
     last5years = [years[i] for i in np.argsort(years)[-5:]]
     last10years = [years[i] for i in np.argsort(years)[-10:]]
-    if trigger_id == 'year-select':
+    if trigger_id == 'year_filter':
         if selected_yrs == [max(years)]:
-            return 1, selected_yrs
+            return_val= 1, selected_yrs
         elif len(selected_yrs) == 5 and set(selected_yrs) == set(last5years):
-            return 5, selected_yrs
+            return_val= 5, selected_yrs
         elif len(selected_yrs) == 10 and set(selected_yrs) == set(last10years):
-            return 10, selected_yrs
+            return_val= 10, selected_yrs
         elif set(selected_yrs) == set(years):
-            return 0, selected_yrs
+            return_val= 0, selected_yrs
         else:
-            return -1, selected_yrs
+            return_val= -1, selected_yrs
     elif trigger_id == 'year-multi-select':
         if multi_value == 1:
-            return multi_value, [max(years)]
+            return_val= multi_value, [max(years)]
         elif multi_value == 5:
-            return multi_value, last5years
+            return_val= multi_value, last5years
         elif multi_value == 10:
-            return multi_value, last10years
+            return_val= multi_value, last10years
         elif multi_value == 0:
-            return multi_value, years
+            return_val= multi_value, years
     else:
-        return multi_value, selected_yrs
+        return_val= multi_value, selected_yrs
+    year_filter = return_val[1]
 
+    new_data = filter_data(
+        df=df, disp_typ=disp_typ, year_filter=year_filter, class_filter=class_filter, rudder_filter=rudder_filter,
+        blade_filter=blade_filter, masters_filter=masters_filter, adult_youth_filter=adult_youth_filter, 
+    )
+
+    # return_val.append(new_data.to_dict('records'))
+    return return_val[0], return_val[1], new_data.to_dict('records')
+
+
+# Selecting Data display option
+@app.callback(
+    Output('grid', 'rowData', allow_duplicate=True),
+    Input('disp_typ', 'value'),
+    State('year_filter', 'value'),
+    State('class_filter', 'value'),
+    State('pos_filter', 'value'),
+    State('cl_pos_filter', 'value'),
+    State('gender_filter', 'value'),
+    State('count_filter', 'value'),
+    State('rudder_filter', 'value'),
+    State('blade_filter', 'value'),
+    State('masters_filter', 'value'),
+    State('adult_youth_filter', 'value'),
+    prevent_initial_call=True
+)
+def disp_typ_selected(disp_typ, year_filter, class_filter,pos_filter, cl_pos_filter, gender_filter,count_filter, 
+                    rudder_filter, blade_filter, masters_filter, adult_youth_filter):
+    return filter_data(
+        df=df, disp_typ=disp_typ, year_filter=year_filter, class_filter=class_filter, rudder_filter=rudder_filter,
+        blade_filter=blade_filter, masters_filter=masters_filter, adult_youth_filter=adult_youth_filter,
+    ).to_dict('records')
 
 # @app.callback(
-#     Output('year-select', 'value'),
+#     Output('year_filter', 'value'),
 #     Input('year-multi-select', 'value'),
-#     State('year-select', 'value')
+#     State('year_filter', 'value')
 # )
 # def mlti_year_select(multi_value, selected_yrs):
 #     if multi_value == 1:

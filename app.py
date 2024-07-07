@@ -424,7 +424,7 @@ year_filter = dbc.DropdownMenu(
 boat_class_filter = dbc.DropdownMenu(
     label='Boat Class',
     children=[
-        dbc.RadioItems(options=[{'label':'All', 'value':1}, {'label':'None', 'value':0}], value=1, style={'padding-left':10}),
+        dbc.RadioItems(options=[{'label':'All', 'value':1}, {'label':'None', 'value':0}], value=1, style={'padding-left':10}, id='class_filter_an'),
         dbc.DropdownMenuItem(divider=True),
         dbc.Checklist(options=[dict(zip(['label', 'value'], [cl, cl])) for cl in CLASS_LIST], value=CLASS_LIST,
             style={'padding-left':10},
@@ -443,9 +443,9 @@ overall_position_filter = dbc.DropdownMenu(
                 {'label':'Top 10', 'value':10},
                 {'label':'Top 15', 'value':15},
                 {'label':'Top 20', 'value':20},
-                {'label':'First Quartile', 'value':25},
-                {'label':'Second Quartile', 'value':50},
-                {'label':'Third Quartile', 'value':75},
+                {'label':'First Quartile', 'value':25, 'disabled':True},
+                {'label':'Second Quartile', 'value':50, 'disabled':True},
+                {'label':'Third Quartile', 'value':75,'disabled':True},
             ],
             style={'padding-left':10},
             value=0,
@@ -464,9 +464,9 @@ class_position_filter = dbc.DropdownMenu(
                 {'label':'Top 10', 'value':10},
                 {'label':'Top 15', 'value':15},
                 {'label':'Top 20', 'value':20},
-                {'label':'First Quartile', 'value':25},
-                {'label':'Second Quartile', 'value':50},
-                {'label':'Third Quartile', 'value':75},
+                {'label':'First Quartile', 'value':25, 'disabled':True},
+                {'label':'Second Quartile', 'value':50, 'disabled':True},
+                {'label':'Third Quartile', 'value':75,'disabled':True},
             ],
             style={'padding-left':10},
             value=0,
@@ -487,7 +487,7 @@ finis_time_filter = html.Div(
 )
 
 gender_filter = dbc.DropdownMenu([
-    dbc.RadioItems(options=[{'label':'All', 'value':1}, {'label':'None', 'value':0}], value=1, style={'padding-left':10}),
+    dbc.RadioItems(options=[{'label':'All', 'value':1}, {'label':'None', 'value':0}], value=1, style={'padding-left':10}, id='gender_filter_an'),
     dbc.DropdownMenuItem(divider=True),
     dbc.Checklist(
         options=[
@@ -504,7 +504,7 @@ gender_filter = dbc.DropdownMenu([
 )
 
 count_filter = dbc.DropdownMenu([
-    dbc.RadioItems(options=[{'label':'All', 'value':1}, {'label':'None', 'value':0}], value=1, style={'padding-left':10}),
+    dbc.RadioItems(options=[{'label':'All', 'value':1}, {'label':'None', 'value':0}], value=1, style={'padding-left':10}, id='count_filter_an'),
     dbc.DropdownMenuItem(divider=True),
     dbc.Checklist(
         options=[
@@ -582,11 +582,12 @@ grid = dag.AgGrid(
     columnDefs=[{"field": f,
                  'filter':(i==2),
                  'wrapText':(i==2),
+                 'sortable':(i!=2),
                  "autoHeight": True,
                  'minWidth': 80 + (i==2)*360 - 40*((i==0)|(i==1))
                  } for i, f in enumerate(data.columns)],
     rowData= data.to_dict("records"), # df.loc[:,'Overall Place':'Boat #'].to_dict("records"),
-    defaultColDef={"flex": 1, "minWidth": 40, "sortable": False, "resizable": True,},
+    defaultColDef={"flex": 1, "minWidth": 40, "sortable": True, "resizable": True,},
     dashGridOptions={"rowSelection":"multiple"},
     style={'--ag-grid-size': 3,
            '--ag-row-height':3},
@@ -658,95 +659,6 @@ def main():
     print('Successfully reached the end of main -----------------------------------------------------------------------')
 
 # region Callbacks ----------------------------------------------------------------------------------------------------
-""" @callback(
-    #Output("line-chart", "figure" ),
-    #Output("scatter-chart", "figure"),
-    # Output("grid", "dashGridOptions"),
-    #Output('debug-text','children'),
-    # Output('year_filter', 'value'),
-    Output('grid','rowData'),
-    Input('year_filter', 'value'),
-    # Input('disp_typ', 'value'),
-    #Input("continents", "value"),
-    #Input("years", "value"),
-    State(ThemeChangerAIO.ids.radio("theme"), "value"),
-    State("switch", "value"),
-    State('disp_typ', 'value')
-)
-def update_data_table(year_select,theme, color_mode_switch_on, display_as): #continent, yrs,
-    global years, df
-    print(f'Callback initiated:\n\
-            year_select = {year_select}\n\
-            Display as: {display_as}',
-            #theam = {theme}\n\
-            #color_mode_switch = {color_mode_switch_on}',
-            flush=False
-        )
-
-    # if year_select is None:
-    #     year_select = max(years)
-    #     print(f'New year assigned = {year_select}')
-
-    # if continent == [] or year_select is None:
-    #     return {}, {}, {}
-
-    theme_name = template_from_url(theme)
-    template_name = theme_name if color_mode_switch_on else theme_name + "_dark"
-
-    # update dataFrame
-    df = get_raw_data(year_select)
-
-    col_list = list(df.iloc[:, :4].columns)
-    if display_as == 'Time of day':
-        key = '_TOD'
-    elif display_as == 'Total time':
-        key = '_TT'
-    elif display_as == 'Split time':
-        key = '_ST'
-    elif display_as == 'Speed': # Speed
-        key = '_SS'
-
-    col_list += list(df.loc[:, df.columns.str.contains(key)].columns.values)
-    print(col_list)
-    return_df = df.loc[:, col_list]
-    return_df.columns = return_df.columns.str.replace(key, '',)
-    print(return_df)
-
-    # dff = df[df.year.between(yrs[0], yrs[1])]
-    # dff = dff[dff.continent.isin(continent)]
-
-    # fig = px.line(
-    #     dff,
-    #     x="year",
-    #     y=year_select,
-    #     color="continent",
-    #     line_group="country",
-    #     template=template_name
-    # )
-
-    # fig_scatter = px.scatter(
-    #     dff[dff.year == yrs[0]],
-    #     x="gdpPercap",
-    #     y="lifeExp",
-    #     size="pop",
-    #     color="continent",
-    #     log_x=True,
-    #     size_max=60,
-    #     template=template_name,
-    #     title="Gapminder %s: %s theme" % (yrs[1], template_name),
-    # )
-
-    # grid.Data = get_raw_data(year=continent).loc[:,'Overall Place':'Seadrift'].to_dict('records')
-
-    # grid_filter = f"{continent}.includes(params.data.continent) && params.data.year >= {yrs[0]} && params.data.year <= {yrs[1]}"
-    # dashGridOptions = {
-    #     "isExternalFilterPresent": {"function": "true"},
-    #     "doesExternalFilterPass": {"function": grid_filter},
-    # }
-
-    return return_df.to_dict("records") #f'Callback initiated:\nyear_select = {year_select}' # fig, fig_scatter, dashGridOptions """
-
-
 # updates the Bootstrap global light/dark color mode
 clientside_callback(
     """
@@ -793,7 +705,6 @@ def toggle_collapse(n, is_open):
 )
 def year_selected(selected_yrs, multi_value, disp_typ, class_filter,pos_filter, cl_pos_filter, gender_filter,count_filter, 
                     rudder_filter, blade_filter, masters_filter, adult_youth_filter):
-    
 
     trigger_id = ctx.triggered_id
     last5years = [years[i] for i in np.argsort(years)[-5:]]
@@ -823,7 +734,8 @@ def year_selected(selected_yrs, multi_value, disp_typ, class_filter,pos_filter, 
     year_filter = return_val[1]
 
     new_data = filter_data(
-        df=df, disp_typ=disp_typ, year_filter=year_filter, class_filter=class_filter, rudder_filter=rudder_filter,
+        df=df, disp_typ=disp_typ, year_filter=year_filter, class_filter=class_filter, pos_filter=pos_filter, 
+        cl_pos_filter=cl_pos_filter, gender_filter=gender_filter, count_filter=count_filter, rudder_filter=rudder_filter,
         blade_filter=blade_filter, masters_filter=masters_filter, adult_youth_filter=adult_youth_filter, 
     )
 
@@ -834,7 +746,11 @@ def year_selected(selected_yrs, multi_value, disp_typ, class_filter,pos_filter, 
 # Selecting Data display option
 @app.callback(
     Output('grid', 'rowData', allow_duplicate=True),
+    
+    # Inputs
     Input('disp_typ', 'value'),
+
+    # State vars
     State('year_filter', 'value'),
     State('class_filter', 'value'),
     State('pos_filter', 'value'),
@@ -845,37 +761,217 @@ def year_selected(selected_yrs, multi_value, disp_typ, class_filter,pos_filter, 
     State('blade_filter', 'value'),
     State('masters_filter', 'value'),
     State('adult_youth_filter', 'value'),
+
+
     prevent_initial_call=True
 )
 def disp_typ_selected(disp_typ, year_filter, class_filter,pos_filter, cl_pos_filter, gender_filter,count_filter, 
                     rudder_filter, blade_filter, masters_filter, adult_youth_filter):
     return filter_data(
-        df=df, disp_typ=disp_typ, year_filter=year_filter, class_filter=class_filter, rudder_filter=rudder_filter,
+        df=df, disp_typ=disp_typ, year_filter=year_filter, class_filter=class_filter, pos_filter=pos_filter, 
+        cl_pos_filter=cl_pos_filter, gender_filter=gender_filter, count_filter=count_filter, rudder_filter=rudder_filter,
         blade_filter=blade_filter, masters_filter=masters_filter, adult_youth_filter=adult_youth_filter,
     ).to_dict('records')
 
-# @app.callback(
-#     Output('year_filter', 'value'),
-#     Input('year-multi-select', 'value'),
-#     State('year_filter', 'value')
-# )
-# def mlti_year_select(multi_value, selected_yrs):
-#     if multi_value == 1:
-#         # Ensure that only the first year is selected
-#         if not selected_yrs == [max(years)]:
-#             # make them equal
-#             return [max(years)]
-#         else:
-#             pass
-#     elif multi_value == 5:
-#         pass
-#     elif multi_value == 10:
-#         pass
-#     elif multi_value == 0:
-#         pass
-#     else:
-#         pass
 
+# Selecting boat class
+@app.callback(
+    Output('class_filter', 'value'),
+    Output('class_filter_an', 'value'),
+    Output('grid', 'rowData', allow_duplicate=True),
+    Input('class_filter', 'value'),
+    Input('class_filter_an', 'value'),
+
+    # State vars
+    State('year_filter', 'value'),
+    State('disp_typ', 'value'),
+    State('pos_filter', 'value'),
+    State('cl_pos_filter', 'value'),
+    State('gender_filter', 'value'),
+    State('count_filter', 'value'),
+    State('rudder_filter', 'value'),
+    State('blade_filter', 'value'),
+    State('masters_filter', 'value'),
+    State('adult_youth_filter', 'value'),
+
+
+    prevent_initial_call=True
+)
+def class_filter_selected(class_filter, class_filter_an, year_filter, disp_typ, pos_filter, cl_pos_filter,
+                            gender_filter,count_filter, rudder_filter, blade_filter, masters_filter, adult_youth_filter):
+
+    trigger_id = ctx.triggered_id
+
+    if trigger_id == 'class_filter':
+        if set(class_filter) == set(CLASS_LIST):
+            class_filter_an = 1
+        elif class_filter == []:
+            class_filter_an = 0
+        else:
+            class_filter_an = None
+    elif trigger_id == 'class_filter_an':
+        if class_filter_an == 0:
+            class_filter = []
+        elif class_filter_an == 1:
+            class_filter = CLASS_LIST
+    
+    # Filter and send new dataFrame
+    new_data = filter_data(
+        df=df, disp_typ=disp_typ, year_filter=year_filter, class_filter=class_filter, pos_filter=pos_filter, 
+        cl_pos_filter=cl_pos_filter, gender_filter=gender_filter, count_filter=count_filter, rudder_filter=rudder_filter,
+        blade_filter=blade_filter, masters_filter=masters_filter, adult_youth_filter=adult_youth_filter, 
+    ).to_dict('records')
+
+    return class_filter, class_filter_an, new_data
+
+
+# Selecting position filter
+@app.callback(
+    Output('grid', 'rowData', allow_duplicate=True),
+    Input('pos_filter', 'value'),
+
+    # State vars
+    State('year_filter', 'value'),
+    State('disp_typ', 'value'),
+    State('class_filter', 'value'),
+    State('cl_pos_filter', 'value'),
+    State('gender_filter', 'value'),
+    State('count_filter', 'value'),
+    State('rudder_filter', 'value'),
+    State('blade_filter', 'value'),
+    State('masters_filter', 'value'),
+    State('adult_youth_filter', 'value'),
+
+    prevent_initial_call = True
+)
+def pos_filter_selected(pos_filter, year_filter, disp_typ, class_filter, cl_pos_filter,
+                            gender_filter,count_filter, rudder_filter, blade_filter, masters_filter, adult_youth_filter):
+    return filter_data(
+        df=df, disp_typ=disp_typ, year_filter=year_filter, class_filter=class_filter, pos_filter=pos_filter, 
+        cl_pos_filter=cl_pos_filter, gender_filter=gender_filter, count_filter=count_filter, rudder_filter=rudder_filter,
+        blade_filter=blade_filter, masters_filter=masters_filter, adult_youth_filter=adult_youth_filter,
+        ).to_dict('records')
+
+
+# Selecting class position filter
+@app.callback(
+    Output('grid', 'rowData', allow_duplicate=True),
+    Input('cl_pos_filter', 'value'),
+
+    # State vars
+    State('year_filter', 'value'),
+    State('disp_typ', 'value'),
+    State('class_filter', 'value'),
+    State('pos_filter', 'value'),
+    State('gender_filter', 'value'),
+    State('count_filter', 'value'),
+    State('rudder_filter', 'value'),
+    State('blade_filter', 'value'),
+    State('masters_filter', 'value'),
+    State('adult_youth_filter', 'value'),
+
+    prevent_initial_call = True
+)
+def pos_filter_selected( cl_pos_filter, year_filter, disp_typ, class_filter, pos_filter,
+                            gender_filter,count_filter, rudder_filter, blade_filter, masters_filter, adult_youth_filter):
+    return filter_data(
+        df=df, disp_typ=disp_typ, year_filter=year_filter, class_filter=class_filter, pos_filter=pos_filter, 
+        cl_pos_filter=cl_pos_filter, gender_filter=gender_filter, count_filter=count_filter, rudder_filter=rudder_filter,
+        blade_filter=blade_filter, masters_filter=masters_filter, adult_youth_filter=adult_youth_filter,
+        ).to_dict('records')
+
+
+@app.callback(
+    Output('gender_filter', 'value'),
+    Output('gender_filter_an', 'value'),
+    Output('grid', 'rowData', allow_duplicate=True),
+    Input('gender_filter', 'value'),
+    Input('gender_filter_an', 'value'),
+
+    # State vars
+    State('year_filter', 'value'),
+    State('disp_typ', 'value'),
+    State('class_filter', 'value'),
+    State('pos_filter', 'value'),
+    State('cl_pos_filter', 'value'),
+    State('count_filter', 'value'),
+    State('rudder_filter', 'value'),
+    State('blade_filter', 'value'),
+    State('masters_filter', 'value'),
+    State('adult_youth_filter', 'value'),
+
+    prevent_initial_call=True
+)
+def gender_filter_selected(gender_filter, gender_filter_an, year_filter, disp_typ, class_filter, pos_filter,
+                            cl_pos_filter,count_filter, rudder_filter, blade_filter, masters_filter, adult_youth_filter):
+
+    trigger_id = ctx.triggered_id
+    gender_list = ['Undefined', 'Male', 'Female', 'Mixed']
+    if trigger_id == 'gender_filter':
+        if set(gender_list) == set(gender_filter):
+            gender_filter_an = 1
+        elif gender_filter == []:
+            gender_filter_an = 0
+        else:
+            gender_filter_an = None
+    elif trigger_id == 'gender_filter_an':
+        if gender_filter_an == 0:
+            gender_filter = []
+        elif gender_filter_an == 1:
+            gender_filter = gender_list
+
+    new_data = filter_data(
+        df=df, disp_typ=disp_typ, year_filter=year_filter, class_filter=class_filter, pos_filter=pos_filter, 
+        cl_pos_filter=cl_pos_filter, gender_filter=gender_filter, count_filter=count_filter, rudder_filter=rudder_filter,
+        blade_filter=blade_filter, masters_filter=masters_filter, adult_youth_filter=adult_youth_filter,
+        ).to_dict('records')
+    return gender_filter, gender_filter_an, new_data
+
+
+@app.callback(
+    Output('count_filter', 'value'),
+    Output('count_filter_an', 'value'),
+    Output('grid', 'rowData', allow_duplicate=True),
+    Input('count_filter', 'value'),
+    Input('count_filter_an', 'value'),
+
+    # State vars
+    State('year_filter', 'value'),
+    State('disp_typ', 'value'),
+    State('class_filter', 'value'),
+    State('pos_filter', 'value'),
+    State('cl_pos_filter', 'value'),
+    State('gender_filter', 'value'),
+    State('rudder_filter', 'value'),
+    State('blade_filter', 'value'),
+    State('masters_filter', 'value'),
+    State('adult_youth_filter', 'value'),
+    prevent_initial_call=True
+)
+def count_filter_selected(count_filter, count_filter_an, year_filter, disp_typ, class_filter, pos_filter,
+                            cl_pos_filter,gender_filter, rudder_filter, blade_filter, masters_filter, adult_youth_filter):
+    trigger_id = ctx.triggered_id
+    allowable_count = [1,2,3,4,5,6]
+    if trigger_id == 'count_filter':
+        if set(count_filter) == set(allowable_count):
+            count_filter_an = 1
+        elif count_filter == []:
+            count_filter_an = 0
+        else:
+            count_filter_an = None
+    elif trigger_id == 'count_filter_an':
+        if count_filter_an == 1:
+            count_filter = allowable_count
+        elif count_filter_an == 0:
+            count_filter = []
+
+    
+    new_data = filter_data(
+        df=df, disp_typ=disp_typ, year_filter=year_filter, class_filter=class_filter, pos_filter=pos_filter, 
+        cl_pos_filter=cl_pos_filter, gender_filter=gender_filter, count_filter=count_filter, rudder_filter=rudder_filter,
+        blade_filter=blade_filter, masters_filter=masters_filter, adult_youth_filter=adult_youth_filter,
+        ).to_dict('records')
+    return count_filter, count_filter_an, new_data
 
 # endregion -----------------------------------------------------------------------------------------------------------
 

@@ -973,6 +973,110 @@ def count_filter_selected(count_filter, count_filter_an, year_filter, disp_typ, 
         ).to_dict('records')
     return count_filter, count_filter_an, new_data
 
+
+@app.callback(
+    Output('grid', 'rowData', allow_duplicate=True),
+    Input('rudder_filter', 'value'),
+
+    # State vars
+    State('year_filter', 'value'),
+    State('disp_typ', 'value'),
+    State('class_filter', 'value'),
+    State('pos_filter', 'value'),
+    State('cl_pos_filter', 'value'),
+    State('gender_filter', 'value'),
+    State('count_filter', 'value'),
+    State('blade_filter', 'value'),
+    State('masters_filter', 'value'),
+    State('adult_youth_filter', 'value'),
+    prevent_initial_call=True
+)
+def rudder_filter_selected(rudder_filter, year_filter, disp_typ, class_filter, pos_filter,
+                            cl_pos_filter,gender_filter, count_filter, blade_filter, masters_filter, adult_youth_filter):
+    return filter_data(
+        df=df, disp_typ=disp_typ, year_filter=year_filter, class_filter=class_filter, pos_filter=pos_filter, 
+        cl_pos_filter=cl_pos_filter, gender_filter=gender_filter, count_filter=count_filter, rudder_filter=rudder_filter,
+        blade_filter=blade_filter, masters_filter=masters_filter, adult_youth_filter=adult_youth_filter,
+        ).to_dict('records')
+
+
+@app.callback(
+    Output('grid', 'rowData', allow_duplicate=True),
+    Input('blade_filter', 'value'),
+
+    # State vars
+    State('year_filter', 'value'),
+    State('disp_typ', 'value'),
+    State('class_filter', 'value'),
+    State('pos_filter', 'value'),
+    State('cl_pos_filter', 'value'),
+    State('gender_filter', 'value'),
+    State('count_filter', 'value'),
+    State('rudder_filter', 'value'),
+    State('masters_filter', 'value'),
+    State('adult_youth_filter', 'value'),
+    prevent_initial_call=True
+)
+def blade_filter_selected(blade_filter, year_filter, disp_typ, class_filter, pos_filter,
+                            cl_pos_filter,gender_filter, count_filter, rudder_filter, masters_filter, adult_youth_filter):
+    return filter_data(
+        df=df, disp_typ=disp_typ, year_filter=year_filter, class_filter=class_filter, pos_filter=pos_filter, 
+        cl_pos_filter=cl_pos_filter, gender_filter=gender_filter, count_filter=count_filter, rudder_filter=rudder_filter,
+        blade_filter=blade_filter, masters_filter=masters_filter, adult_youth_filter=adult_youth_filter,
+        ).to_dict('records')
+
+
+
+@app.callback(
+    Output('grid', 'rowData', allow_duplicate=True),
+    Input('masters_filter', 'value'),
+
+    # State vars
+    State('year_filter', 'value'),
+    State('disp_typ', 'value'),
+    State('class_filter', 'value'),
+    State('pos_filter', 'value'),
+    State('cl_pos_filter', 'value'),
+    State('gender_filter', 'value'),
+    State('count_filter', 'value'),
+    State('blade_filter', 'value'),
+    State('rudder_filter', 'value'),
+    State('adult_youth_filter', 'value'),
+    prevent_initial_call=True
+)
+def masters_filter_selected(masters_filter, year_filter, disp_typ, class_filter, pos_filter,
+                            cl_pos_filter,gender_filter, count_filter, blade_filter, rudder_filter, adult_youth_filter):
+    return filter_data(
+        df=df, disp_typ=disp_typ, year_filter=year_filter, class_filter=class_filter, pos_filter=pos_filter, 
+        cl_pos_filter=cl_pos_filter, gender_filter=gender_filter, count_filter=count_filter, rudder_filter=rudder_filter,
+        blade_filter=blade_filter, masters_filter=masters_filter, adult_youth_filter=adult_youth_filter,
+        ).to_dict('records')
+
+
+@app.callback(
+    Output('grid', 'rowData', allow_duplicate=True),
+    Input('adult_youth_filter', 'value'),
+
+    # State vars
+    State('year_filter', 'value'),
+    State('disp_typ', 'value'),
+    State('class_filter', 'value'),
+    State('pos_filter', 'value'),
+    State('cl_pos_filter', 'value'),
+    State('gender_filter', 'value'),
+    State('count_filter', 'value'),
+    State('blade_filter', 'value'),
+    State('rudder_filter', 'value'),
+    State('masters_filter', 'value'),
+    prevent_initial_call=True
+)
+def adult_youth_filter_selected(adult_youth_filter, year_filter, disp_typ, class_filter, pos_filter,
+                            cl_pos_filter,gender_filter, count_filter, blade_filter, rudder_filter, masters_filter):
+    return filter_data(
+        df=df, disp_typ=disp_typ, year_filter=year_filter, class_filter=class_filter, pos_filter=pos_filter, 
+        cl_pos_filter=cl_pos_filter, gender_filter=gender_filter, count_filter=count_filter, rudder_filter=rudder_filter,
+        blade_filter=blade_filter, masters_filter=masters_filter, adult_youth_filter=adult_youth_filter,
+        ).to_dict('records')
 # endregion -----------------------------------------------------------------------------------------------------------
 
 

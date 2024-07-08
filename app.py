@@ -315,8 +315,6 @@ def get_all_raw_data() -> pd.DataFrame:
     print('Exit get all raw data -------------------')
     return df
 
-# def add_sufix(s, adder):
-#     return s + adder
 
 def filter_data(df:pd.DataFrame, disp_typ:str='Time of day', year_filter:List[int]=years, class_filter:List[str]=CLASS_LIST,
                 pos_filter:int=0, cl_pos_filter:int=0, gender_filter:List[str]=['Undefined', 'Male', 'Female', 'Mixed'],
@@ -480,8 +478,9 @@ finis_time_filter = html.Div(
         dbc.Label('Finish Time [Hr]'),
         dcc.RangeSlider(min=min_hr, max=100.0, 
                         value=[min_hr, 100],
-                        tooltip={"placement": "bottom", "always_visible": True}),
-                        #id='f-time'
+                        tooltip={"placement": "bottom", "always_visible": True},
+                        id='time_filter'
+                        ),
     ],
     className="mb-4"
 )
@@ -596,8 +595,10 @@ grid = dag.AgGrid(
 )
 collapse = html.Div(
     [
-        dbc.Button(
-            "Tabular Data",
+        dbc.Button([
+            #html.I(className="bi bi-table"),
+            "Tabular Data"
+        ],
             id="collapse-button",
             className="mb-3",
             color="primary",
@@ -700,11 +701,10 @@ def toggle_collapse(n, is_open):
     State('blade_filter', 'value'),
     State('masters_filter', 'value'),
     State('adult_youth_filter', 'value'),
-    #State('f-', 'value'),# 9
-    # prevent_initial_call=True
+    State('time_filter', 'value'),# 9
 )
 def year_selected(selected_yrs, multi_value, disp_typ, class_filter,pos_filter, cl_pos_filter, gender_filter,count_filter, 
-                    rudder_filter, blade_filter, masters_filter, adult_youth_filter):
+                    rudder_filter, blade_filter, masters_filter, adult_youth_filter, time_filter):
 
     trigger_id = ctx.triggered_id
     last5years = [years[i] for i in np.argsort(years)[-5:]]
@@ -736,7 +736,7 @@ def year_selected(selected_yrs, multi_value, disp_typ, class_filter,pos_filter, 
     new_data = filter_data(
         df=df, disp_typ=disp_typ, year_filter=year_filter, class_filter=class_filter, pos_filter=pos_filter, 
         cl_pos_filter=cl_pos_filter, gender_filter=gender_filter, count_filter=count_filter, rudder_filter=rudder_filter,
-        blade_filter=blade_filter, masters_filter=masters_filter, adult_youth_filter=adult_youth_filter, 
+        blade_filter=blade_filter, masters_filter=masters_filter, adult_youth_filter=adult_youth_filter, time_filter=time_filter
     )
 
     # return_val.append(new_data.to_dict('records'))
@@ -761,16 +761,17 @@ def year_selected(selected_yrs, multi_value, disp_typ, class_filter,pos_filter, 
     State('blade_filter', 'value'),
     State('masters_filter', 'value'),
     State('adult_youth_filter', 'value'),
+    State('time_filter', 'value'),
 
 
     prevent_initial_call=True
 )
 def disp_typ_selected(disp_typ, year_filter, class_filter,pos_filter, cl_pos_filter, gender_filter,count_filter, 
-                    rudder_filter, blade_filter, masters_filter, adult_youth_filter):
+                    rudder_filter, blade_filter, masters_filter, adult_youth_filter, time_filter):
     return filter_data(
         df=df, disp_typ=disp_typ, year_filter=year_filter, class_filter=class_filter, pos_filter=pos_filter, 
         cl_pos_filter=cl_pos_filter, gender_filter=gender_filter, count_filter=count_filter, rudder_filter=rudder_filter,
-        blade_filter=blade_filter, masters_filter=masters_filter, adult_youth_filter=adult_youth_filter,
+        blade_filter=blade_filter, masters_filter=masters_filter, adult_youth_filter=adult_youth_filter, time_filter=time_filter
     ).to_dict('records')
 
 
@@ -793,12 +794,13 @@ def disp_typ_selected(disp_typ, year_filter, class_filter,pos_filter, cl_pos_fil
     State('blade_filter', 'value'),
     State('masters_filter', 'value'),
     State('adult_youth_filter', 'value'),
+    State('time_filter', 'value'),
 
 
     prevent_initial_call=True
 )
 def class_filter_selected(class_filter, class_filter_an, year_filter, disp_typ, pos_filter, cl_pos_filter,
-                            gender_filter,count_filter, rudder_filter, blade_filter, masters_filter, adult_youth_filter):
+                            gender_filter,count_filter, rudder_filter, blade_filter, masters_filter, adult_youth_filter, time_filter):
 
     trigger_id = ctx.triggered_id
 
@@ -819,7 +821,7 @@ def class_filter_selected(class_filter, class_filter_an, year_filter, disp_typ, 
     new_data = filter_data(
         df=df, disp_typ=disp_typ, year_filter=year_filter, class_filter=class_filter, pos_filter=pos_filter, 
         cl_pos_filter=cl_pos_filter, gender_filter=gender_filter, count_filter=count_filter, rudder_filter=rudder_filter,
-        blade_filter=blade_filter, masters_filter=masters_filter, adult_youth_filter=adult_youth_filter, 
+        blade_filter=blade_filter, masters_filter=masters_filter, adult_youth_filter=adult_youth_filter, time_filter=time_filter
     ).to_dict('records')
 
     return class_filter, class_filter_an, new_data
@@ -841,15 +843,16 @@ def class_filter_selected(class_filter, class_filter_an, year_filter, disp_typ, 
     State('blade_filter', 'value'),
     State('masters_filter', 'value'),
     State('adult_youth_filter', 'value'),
+    State('time_filter', 'value'),
 
     prevent_initial_call = True
 )
 def pos_filter_selected(pos_filter, year_filter, disp_typ, class_filter, cl_pos_filter,
-                            gender_filter,count_filter, rudder_filter, blade_filter, masters_filter, adult_youth_filter):
+                            gender_filter,count_filter, rudder_filter, blade_filter, masters_filter, adult_youth_filter, time_filter):
     return filter_data(
         df=df, disp_typ=disp_typ, year_filter=year_filter, class_filter=class_filter, pos_filter=pos_filter, 
         cl_pos_filter=cl_pos_filter, gender_filter=gender_filter, count_filter=count_filter, rudder_filter=rudder_filter,
-        blade_filter=blade_filter, masters_filter=masters_filter, adult_youth_filter=adult_youth_filter,
+        blade_filter=blade_filter, masters_filter=masters_filter, adult_youth_filter=adult_youth_filter, time_filter=time_filter
         ).to_dict('records')
 
 
@@ -869,15 +872,16 @@ def pos_filter_selected(pos_filter, year_filter, disp_typ, class_filter, cl_pos_
     State('blade_filter', 'value'),
     State('masters_filter', 'value'),
     State('adult_youth_filter', 'value'),
+    State('time_filter', 'value'),
 
     prevent_initial_call = True
 )
 def pos_filter_selected( cl_pos_filter, year_filter, disp_typ, class_filter, pos_filter,
-                            gender_filter,count_filter, rudder_filter, blade_filter, masters_filter, adult_youth_filter):
+                            gender_filter,count_filter, rudder_filter, blade_filter, masters_filter, adult_youth_filter,time_filter):
     return filter_data(
         df=df, disp_typ=disp_typ, year_filter=year_filter, class_filter=class_filter, pos_filter=pos_filter, 
         cl_pos_filter=cl_pos_filter, gender_filter=gender_filter, count_filter=count_filter, rudder_filter=rudder_filter,
-        blade_filter=blade_filter, masters_filter=masters_filter, adult_youth_filter=adult_youth_filter,
+        blade_filter=blade_filter, masters_filter=masters_filter, adult_youth_filter=adult_youth_filter,time_filter=time_filter
         ).to_dict('records')
 
 
@@ -899,11 +903,12 @@ def pos_filter_selected( cl_pos_filter, year_filter, disp_typ, class_filter, pos
     State('blade_filter', 'value'),
     State('masters_filter', 'value'),
     State('adult_youth_filter', 'value'),
+    State('time_filter', 'value'),
 
     prevent_initial_call=True
 )
 def gender_filter_selected(gender_filter, gender_filter_an, year_filter, disp_typ, class_filter, pos_filter,
-                            cl_pos_filter,count_filter, rudder_filter, blade_filter, masters_filter, adult_youth_filter):
+                            cl_pos_filter,count_filter, rudder_filter, blade_filter, masters_filter, adult_youth_filter, time_filter):
 
     trigger_id = ctx.triggered_id
     gender_list = ['Undefined', 'Male', 'Female', 'Mixed']
@@ -923,7 +928,7 @@ def gender_filter_selected(gender_filter, gender_filter_an, year_filter, disp_ty
     new_data = filter_data(
         df=df, disp_typ=disp_typ, year_filter=year_filter, class_filter=class_filter, pos_filter=pos_filter, 
         cl_pos_filter=cl_pos_filter, gender_filter=gender_filter, count_filter=count_filter, rudder_filter=rudder_filter,
-        blade_filter=blade_filter, masters_filter=masters_filter, adult_youth_filter=adult_youth_filter,
+        blade_filter=blade_filter, masters_filter=masters_filter, adult_youth_filter=adult_youth_filter, time_filter=time_filter
         ).to_dict('records')
     return gender_filter, gender_filter_an, new_data
 
@@ -946,10 +951,11 @@ def gender_filter_selected(gender_filter, gender_filter_an, year_filter, disp_ty
     State('blade_filter', 'value'),
     State('masters_filter', 'value'),
     State('adult_youth_filter', 'value'),
+    State('time_filter', 'value'),
     prevent_initial_call=True
 )
 def count_filter_selected(count_filter, count_filter_an, year_filter, disp_typ, class_filter, pos_filter,
-                            cl_pos_filter,gender_filter, rudder_filter, blade_filter, masters_filter, adult_youth_filter):
+                            cl_pos_filter,gender_filter, rudder_filter, blade_filter, masters_filter, adult_youth_filter,time_filter):
     trigger_id = ctx.triggered_id
     allowable_count = [1,2,3,4,5,6]
     if trigger_id == 'count_filter':
@@ -969,7 +975,7 @@ def count_filter_selected(count_filter, count_filter_an, year_filter, disp_typ, 
     new_data = filter_data(
         df=df, disp_typ=disp_typ, year_filter=year_filter, class_filter=class_filter, pos_filter=pos_filter, 
         cl_pos_filter=cl_pos_filter, gender_filter=gender_filter, count_filter=count_filter, rudder_filter=rudder_filter,
-        blade_filter=blade_filter, masters_filter=masters_filter, adult_youth_filter=adult_youth_filter,
+        blade_filter=blade_filter, masters_filter=masters_filter, adult_youth_filter=adult_youth_filter, time_filter=time_filter
         ).to_dict('records')
     return count_filter, count_filter_an, new_data
 
@@ -989,14 +995,15 @@ def count_filter_selected(count_filter, count_filter_an, year_filter, disp_typ, 
     State('blade_filter', 'value'),
     State('masters_filter', 'value'),
     State('adult_youth_filter', 'value'),
+    State('time_filter', 'value'),
     prevent_initial_call=True
 )
 def rudder_filter_selected(rudder_filter, year_filter, disp_typ, class_filter, pos_filter,
-                            cl_pos_filter,gender_filter, count_filter, blade_filter, masters_filter, adult_youth_filter):
+                            cl_pos_filter,gender_filter, count_filter, blade_filter, masters_filter, adult_youth_filter, time_filter):
     return filter_data(
         df=df, disp_typ=disp_typ, year_filter=year_filter, class_filter=class_filter, pos_filter=pos_filter, 
         cl_pos_filter=cl_pos_filter, gender_filter=gender_filter, count_filter=count_filter, rudder_filter=rudder_filter,
-        blade_filter=blade_filter, masters_filter=masters_filter, adult_youth_filter=adult_youth_filter,
+        blade_filter=blade_filter, masters_filter=masters_filter, adult_youth_filter=adult_youth_filter,time_filter=time_filter
         ).to_dict('records')
 
 
@@ -1015,14 +1022,15 @@ def rudder_filter_selected(rudder_filter, year_filter, disp_typ, class_filter, p
     State('rudder_filter', 'value'),
     State('masters_filter', 'value'),
     State('adult_youth_filter', 'value'),
+    State('time_filter', 'value'),
     prevent_initial_call=True
 )
 def blade_filter_selected(blade_filter, year_filter, disp_typ, class_filter, pos_filter,
-                            cl_pos_filter,gender_filter, count_filter, rudder_filter, masters_filter, adult_youth_filter):
+                            cl_pos_filter,gender_filter, count_filter, rudder_filter, masters_filter, adult_youth_filter, time_filter):
     return filter_data(
         df=df, disp_typ=disp_typ, year_filter=year_filter, class_filter=class_filter, pos_filter=pos_filter, 
         cl_pos_filter=cl_pos_filter, gender_filter=gender_filter, count_filter=count_filter, rudder_filter=rudder_filter,
-        blade_filter=blade_filter, masters_filter=masters_filter, adult_youth_filter=adult_youth_filter,
+        blade_filter=blade_filter, masters_filter=masters_filter, adult_youth_filter=adult_youth_filter,time_filter=time_filter
         ).to_dict('records')
 
 
@@ -1042,14 +1050,15 @@ def blade_filter_selected(blade_filter, year_filter, disp_typ, class_filter, pos
     State('blade_filter', 'value'),
     State('rudder_filter', 'value'),
     State('adult_youth_filter', 'value'),
+    State('time_filter', 'value'),
     prevent_initial_call=True
 )
 def masters_filter_selected(masters_filter, year_filter, disp_typ, class_filter, pos_filter,
-                            cl_pos_filter,gender_filter, count_filter, blade_filter, rudder_filter, adult_youth_filter):
+                            cl_pos_filter,gender_filter, count_filter, blade_filter, rudder_filter, adult_youth_filter,time_filter):
     return filter_data(
         df=df, disp_typ=disp_typ, year_filter=year_filter, class_filter=class_filter, pos_filter=pos_filter, 
         cl_pos_filter=cl_pos_filter, gender_filter=gender_filter, count_filter=count_filter, rudder_filter=rudder_filter,
-        blade_filter=blade_filter, masters_filter=masters_filter, adult_youth_filter=adult_youth_filter,
+        blade_filter=blade_filter, masters_filter=masters_filter, adult_youth_filter=adult_youth_filter,time_filter=time_filter
         ).to_dict('records')
 
 
@@ -1068,14 +1077,43 @@ def masters_filter_selected(masters_filter, year_filter, disp_typ, class_filter,
     State('blade_filter', 'value'),
     State('rudder_filter', 'value'),
     State('masters_filter', 'value'),
+    State('time_filter', 'value'),
     prevent_initial_call=True
 )
 def adult_youth_filter_selected(adult_youth_filter, year_filter, disp_typ, class_filter, pos_filter,
-                            cl_pos_filter,gender_filter, count_filter, blade_filter, rudder_filter, masters_filter):
+                            cl_pos_filter,gender_filter, count_filter, blade_filter, rudder_filter, masters_filter, time_filter):
     return filter_data(
         df=df, disp_typ=disp_typ, year_filter=year_filter, class_filter=class_filter, pos_filter=pos_filter, 
         cl_pos_filter=cl_pos_filter, gender_filter=gender_filter, count_filter=count_filter, rudder_filter=rudder_filter,
-        blade_filter=blade_filter, masters_filter=masters_filter, adult_youth_filter=adult_youth_filter,
+        blade_filter=blade_filter, masters_filter=masters_filter, adult_youth_filter=adult_youth_filter,time_filter=time_filter
+        ).to_dict('records')
+
+
+@app.callback(
+    Output('grid', 'rowData', allow_duplicate=True),
+    Input('time_filter', 'value'),
+
+    # State vars
+    State('year_filter', 'value'),
+    State('disp_typ', 'value'),
+    State('class_filter', 'value'),
+    State('pos_filter', 'value'),
+    State('cl_pos_filter', 'value'),
+    State('gender_filter', 'value'),
+    State('count_filter', 'value'),
+    State('blade_filter', 'value'),
+    State('rudder_filter', 'value'),
+    State('masters_filter', 'value'),
+    State('adult_youth_filter', 'value'),
+    prevent_initial_call=True
+)
+def time_filter_selected(time_filter, year_filter, disp_typ, class_filter, pos_filter,
+                            cl_pos_filter,gender_filter, count_filter, blade_filter, rudder_filter, masters_filter, adult_youth_filter):
+    print(time_filter)
+    return filter_data(
+        df=df, disp_typ=disp_typ, year_filter=year_filter, class_filter=class_filter, pos_filter=pos_filter, 
+        cl_pos_filter=cl_pos_filter, gender_filter=gender_filter, count_filter=count_filter, rudder_filter=rudder_filter,
+        blade_filter=blade_filter, masters_filter=masters_filter, adult_youth_filter=adult_youth_filter,time_filter=time_filter
         ).to_dict('records')
 # endregion -----------------------------------------------------------------------------------------------------------
 
@@ -1088,4 +1126,5 @@ if __name__ == '__main__':
     * Add callback for data type selection
     * Fix speed calculations
     * Fix C1 getting classified as C2
+    * Add class and class position columns
 '''

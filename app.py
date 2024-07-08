@@ -168,17 +168,57 @@ def find_class(str_class:str) -> str:
     str_class = str(str_class)
     str_class = re.sub(r'\W|^\d|[3-9]', '', str_class.replace('1st ', '').replace('2nd ','').replace('3rd ', '').replace('th ', '').replace('0', '')).lower()
     str_class = re.sub(r'^\d', '', str_class)
-    str_class = str_class.replace('masters', '').replace('adultyouth', '').replace('adultchild', '')
+    str_class = str_class.replace('masters', '').replace('adultyouth', '').replace('adultchild', '').replace('woman', 'women')
     
+    # Define search terms
+    women = 'women' in str_class
+    unlimited = 'unlimited' in str_class
+    tandem = 'tandem' in str_class
+    novice = 'novice' in str_class
+    solo = 'solo' in str_class
+    uscac2 = 'uscac2' in str_class
+    uscac1 = 'uscac1' in str_class
+    standard = 'standard' in str_class
+    mixed = 'mixed' in str_class
+    
+    if not women and unlimited and not tandem and not novice and not solo and not uscac2 and not uscac1 and not standard and not mixed:
+        return_class = CLASS_LIST[0] # Unlimited
+    elif women and unlimited and not tandem and not novice and not solo and not uscac2 and not uscac1 and not standard and not mixed:
+        return_class = CLASS_LIST[1] # Women's Unlimited
+    elif not women and unlimited and tandem and not novice and not solo and not uscac2 and not uscac1 and not standard and not mixed:
+        return_class = CLASS_LIST[2] # Tandem Unlimited
+    elif women and unlimited and tandem and not novice and not solo and not uscac2 and not uscac1 and not standard and not mixed:
+        return_class = CLASS_LIST[3] # Women's Tandem Unlimited
+    elif not women and unlimited and not tandem and not novice and solo and not uscac2 and not uscac1 and not standard and not mixed:
+        return_class = CLASS_LIST[4] # Men's Solo Unlimited
+    elif women and unlimited and not tandem and not novice and solo and not uscac2 and not uscac1 and not standard and not mixed:
+        return_class = CLASS_LIST[5] # Women's Solo Unlimited
+    elif not women and not unlimited and not tandem and not novice and not solo and uscac2 and not uscac1 and not standard and not mixed:
+        return_class = CLASS_LIST[6] # USCA C2
+    elif not women and not unlimited and not tandem and not novice and not solo and not uscac2 and uscac1 and not standard and not mixed:
+        return_class = CLASS_LIST[7] # Men's C1
+    elif women and not unlimited and not tandem and not novice and not solo and not uscac2 and uscac1 and not standard and not mixed:
+        return_class = CLASS_LIST[8] # Women's C1
+    elif not women and not unlimited and not tandem and not novice and not solo and not uscac2 and not uscac1 and not standard and not mixed:
+        return_class = CLASS_LIST[9] # Aluminum
+    elif not women and not unlimited and not tandem and not novice and not solo and not uscac2 and not uscac1 and standard and not mixed:
+        return_class = CLASS_LIST[10] # Standard
+    elif not women and not unlimited and not tandem and novice and not solo and not uscac2 and not uscac1 and not standard and not mixed:
+        return_class = CLASS_LIST[11] # Novice
+    elif women and not unlimited and not tandem and novice and not solo and not uscac2 and not uscac1 and not standard and not mixed:
+        return_class = CLASS_LIST[12] # Women's Novice
+    elif not women and not unlimited and not tandem and novice and not solo and not uscac2 and not uscac1 and not standard and mixed:
+        return_class = CLASS_LIST[13] # Mixed
+    else:
+        # find the class that is the most similar to the string
+        similarity_ratio = 0
+        return_class = None
+        for cl in CLASS_LIST:
+            if SequenceMatcher(None, str_class, cl.lower()).ratio() > similarity_ratio:
+                similarity_ratio = SequenceMatcher(None, str_class, cl.lower()).ratio()
+                return_class = cl
 
-    # find the class that is the most similar to the string
-    similarity_ratio = 0
-    return_class = None
-    for cl in CLASS_LIST:
-        if SequenceMatcher(None, str_class, cl.lower()).ratio() > similarity_ratio:
-            similarity_ratio = SequenceMatcher(None, str_class, cl.lower()).ratio()
-            return_class = cl
-
+    #print(f'Given:{str_class}\nReturned: {return_class}\n\n')
     return return_class
 
 def find_gender(str_class:str) -> str:
@@ -353,7 +393,8 @@ def filter_data(df:pd.DataFrame, disp_typ:str='Time of day', year_filter:List[in
 
     data_cols = [x + key for x in cps]
     
-    cols = ['year', 'Overall Place', 'Team Members'] + data_cols
+
+    cols = ['year', 'Overall Place', 'Class Place', 'Class', 'Team Members'] + data_cols
     filtered = filtered.loc[:, cols]
     
     filtered.rename(columns=dict(zip(data_cols, cps)), inplace=True)
@@ -573,17 +614,16 @@ controls = dbc.Card([
     ],
     body=True,
 )
-# cols = ['Overall Place', 'Team Members'] + list(TWS_CHECKPOINTS.axes[0].values[1:])
-# print(filter_data(df=df,disp_typ='Time of day'))
+
 data = filter_data(df=df,disp_typ='Time of day')
 grid = dag.AgGrid(
     id="grid",
     columnDefs=[{"field": f,
-                 'filter':(i==2),
-                 'wrapText':(i==2),
-                 'sortable':(i!=2),
+                 'filter':(i==4),
+                 'wrapText':(i==4),
+                 'sortable':(i!=4),
                  "autoHeight": True,
-                 'minWidth': 80 + (i==2)*360 - 40*((i==0)|(i==1))
+                 'minWidth': 80 + (i==4)*360 - 40*((i==0)|(i==1)|(i==2)|(i==3))
                  } for i, f in enumerate(data.columns)],
     rowData= data.to_dict("records"), # df.loc[:,'Overall Place':'Boat #'].to_dict("records"),
     defaultColDef={"flex": 1, "minWidth": 40, "sortable": True, "resizable": True,},

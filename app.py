@@ -33,7 +33,7 @@ CLASS_LIST = list(pd.read_csv('data\\class_list.csv', sep=',')['class'])
 # stylesheet with the .dbc class to style  dcc, DataTable and AG Grid components with a Bootstrap theme
 dbc_css = "https://cdn.jsdelivr.net/gh/AnnMarieW/dash-bootstrap-templates/dbc.min.css"
 
-external_stylesheets = [dbc.themes.SOLAR, dbc.icons.FONT_AWESOME, dbc_css]
+external_stylesheets = [dbc.themes.SOLAR, dbc.icons.BOOTSTRAP, dbc_css]
 app = Dash(external_stylesheets=external_stylesheets)
 year = 2024
 years = os.listdir('data\\split_data\\')
@@ -419,9 +419,9 @@ if DEBUG:
 # region Layout Elements ----------------------------------------------------------------------------------------------
 color_mode_switch =  html.Span(
     [
-        dbc.Label(className="fa fa-moon", html_for="switch"),
+        dbc.Label(className='bi bi-moon', html_for="switch"), # fa fa-moon
         dbc.Switch( id="switch", value=True, className="d-inline-block ms-1", persistence=True,),
-        dbc.Label(className="fa fa-sun", html_for="switch"),
+        dbc.Label(className='bi bi-brightness-high', html_for="switch"), #fa fa-sun
     ]
 )
 # The ThemeChangerAIO loads all 52  Bootstrap themed figure templates to plotly.io
@@ -591,28 +591,45 @@ dropdown2 = html.Div(
     className='mb-4',
 )
 
+expand_filter_button = dbc.Button([
+    html.I(className='bi bi-funnel'),
+        '  Data Filters'
+],
+    id="expand-filter-button",
+    className="mb-3",
+    color="primary",
+    n_clicks=0,
+)
+        
 # This is the card that contains the controls
-controls = dbc.Card([
-    dbc.Label('Data Filters'),
-    dbc.Container([
-        dbc.Row(children=dbc.Stack(
-            children=[year_filter, boat_class_filter, overall_position_filter, class_position_filter, gender_filter, count_filter],
-            direction='horizontal',
-            gap=3
+controls = dbc.Collapse([
+    dbc.Card(
+        [
+        dbc.Label('Data Filters'), # 'Data Filters', 
+        dbc.Container([
+            dbc.Row(children=dbc.Stack(
+                children=[year_filter, boat_class_filter, overall_position_filter, class_position_filter, gender_filter, count_filter],
+                direction='horizontal',
+                gap=3
+                ),
+            justify='start'
             ),
-        justify='start'
-        ),
-        dbc.Row(children=dbc.Stack(
-            children=[dropdown2, restriction_filter, recognition_filter, ],
-            direction='horizontal',
-            gap=5
-        ),
-        align='start'
-        ),
-        dbc.Row(children=finis_time_filter),
-    ])
+            dbc.Row(children=dbc.Stack(
+                children=[dropdown2, restriction_filter, recognition_filter, ],
+                direction='horizontal',
+                gap=5
+            ),
+            align='start'
+            ),
+            dbc.Row(children=finis_time_filter),
+        ]) 
+        ],
+        body=True,
+    )
+
     ],
-    body=True,
+    id="filter-collapse",
+    is_open=False,
 )
 
 data = filter_data(df=df,disp_typ='Time of day')
@@ -633,25 +650,27 @@ grid = dag.AgGrid(
     columnSizeOptions={'skipHeader':True, 'keys':list(data.columns[3:].values)},
     columnSize = 'sizeToFit'
 )
-collapse = html.Div(
-    [
-        dbc.Button([
-            #html.I(className="bi bi-table"),
-            "Tabular Data"
+expand_table_button = dbc.Button([
+            html.I(className="bi bi-table"),
+            '  Tabular Data'
         ],
             id="collapse-button",
             className="mb-3",
             color="primary",
             n_clicks=0,
-        ),
-        dbc.Collapse(
-            grid,
-            id="collapse",
-            is_open=False,
-        ),
-    ]
-)
+        )
 
+collapse = dbc.Collapse(
+    dbc.Card(
+        [
+            dbc.Label('Tabular Data'),
+            grid
+        ],
+        body=True
+    ),
+    id='collapse',
+    is_open=False
+)
 
 # region Tabs
 tab1 = dbc.Tab([], 
@@ -684,8 +703,13 @@ def main():
 
     app.layout = dbc.Container([
         dbc.Row([
-            theme_controls,
-            html.Div('Texas Water Safari Results', className='text-primary text-center fs-3')
+            # theme_controls,
+            html.Div('Texas Water Safari Results', className='text-primary text-center fs-3'),
+            dbc.Stack(
+                [expand_filter_button, expand_table_button],
+                direction='horizontal',
+                gap=3,
+            ) 
         ]),
         dbc.Row([controls], style={'padding':3}),
         dbc.Row([collapse],style={'padding':3}),
@@ -701,16 +725,16 @@ def main():
 
 # region Callbacks ----------------------------------------------------------------------------------------------------
 # updates the Bootstrap global light/dark color mode
-clientside_callback(
-    """
-    switchOn => {       
-       document.documentElement.setAttribute('data-bs-theme', switchOn ? 'light' : 'dark');  
-       return window.dash_clientside.no_update
-    }
-    """,
-    Output("switch", "id"),
-    Input("switch", "value"),
-)
+# clientside_callback(
+#     """
+#     switchOn => {       
+#        document.documentElement.setAttribute('data-bs-theme', switchOn ? 'light' : 'dark');  
+#        return window.dash_clientside.no_update
+#     }
+#     """,
+#     Output("switch", "id"),
+#     Input("switch", "value"),
+# )
 
 # collapsing the data table
 @app.callback(
@@ -723,6 +747,16 @@ def toggle_collapse(n, is_open):
         return not is_open
     return is_open
 
+# collapsing the data filters
+@app.callback(
+    Output('filter-collapse', 'is_open'),
+    Input('expand-filter-button', 'n_clicks'),
+    State('filter-collapse', 'is_open')
+)
+def toggle_filter_collapse(n, is_open):
+    if n:
+        return not is_open
+    return is_open
 
 # Selecting the year
 @app.callback(

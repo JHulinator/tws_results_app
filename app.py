@@ -33,7 +33,7 @@ CLASS_LIST = list(pd.read_csv('data\\class_list.csv', sep=',')['class'])
 # stylesheet with the .dbc class to style  dcc, DataTable and AG Grid components with a Bootstrap theme
 dbc_css = "https://cdn.jsdelivr.net/gh/AnnMarieW/dash-bootstrap-templates/dbc.min.css"
 
-external_stylesheets = [dbc.themes.SOLAR, dbc.icons.BOOTSTRAP, dbc_css]
+external_stylesheets = [dbc.themes.FLATLY, dbc.icons.BOOTSTRAP, dbc_css]
 app = Dash(external_stylesheets=external_stylesheets)
 year = 2024
 years = os.listdir('data\\split_data\\')
@@ -424,10 +424,15 @@ color_mode_switch =  html.Span(
         dbc.Label(className='bi bi-brightness-high', html_for="switch"), #fa fa-sun
     ]
 )
-# The ThemeChangerAIO loads all 52  Bootstrap themed figure templates to plotly.io
-theme_controls = html.Div(
-    [ThemeChangerAIO(aio_id="theme"), color_mode_switch],
-    className="hstack gap-3 mt-2"
+
+theme_changer = ThemeChangerAIO(aio_id='theme', offcanvas_props={'placement':'end'}, button_props={'color':'secondary'})
+theme_changer.children[0].children = html.I(className='bi bi-gear')
+theme_controls = dbc.Stack(
+    [
+        theme_changer, # ThemeChangerAIO(aio_id='theme', radio_props={}, button_props={'children':'bi bi-funnel'}, offcanvas_props={'placement':'end'}),
+        color_mode_switch
+    ],
+    direction='vertical',
 )
 
 years_ckb = dbc.Checklist(
@@ -702,17 +707,27 @@ def main():
     # region Build the app layout
 
     app.layout = dbc.Container([
-        dbc.Row([
-            # theme_controls,
-            html.Div('Texas Water Safari Results', className='text-primary text-center fs-3'),
-            dbc.Stack(
-                [expand_filter_button, expand_table_button],
-                direction='horizontal',
-                gap=3,
-            ) 
-        ]),
-        dbc.Row([controls], style={'padding':3}),
-        dbc.Row([collapse],style={'padding':3}),
+        # dbc.Row([
+        #     # theme_controls,
+        #     # html.Div('Texas Water Safari Results', className='text-primary text-center fs-3'),
+        #     dbc.Col('Texas Water Safari Results', className='text-primary text-center fs-3'),
+        #     dbc.Col(theme_controls, width='auto')
+        # ]),
+        html.Div(dbc.Stack(
+            [
+                # html.Div('test'),
+                html.Div('Texas Water Safari Results', className='mx-auto text-primary text-center fs-3'), # text-primary text-center fs-3
+                html.Div(theme_controls)
+            ],
+            direction='horizontal'
+        ), style={'padding':2}),
+        dbc.Stack(
+            [expand_filter_button, expand_table_button],
+            direction='horizontal',
+            gap=3,
+        ),
+        dbc.Row([controls], style={'padding':2}),
+        dbc.Row([collapse],style={'padding':2}),
         dbc.Row([tabs], style={'padding':3},align='stretch')
     ],
     fluid=True,
@@ -725,16 +740,16 @@ def main():
 
 # region Callbacks ----------------------------------------------------------------------------------------------------
 # updates the Bootstrap global light/dark color mode
-# clientside_callback(
-#     """
-#     switchOn => {       
-#        document.documentElement.setAttribute('data-bs-theme', switchOn ? 'light' : 'dark');  
-#        return window.dash_clientside.no_update
-#     }
-#     """,
-#     Output("switch", "id"),
-#     Input("switch", "value"),
-# )
+clientside_callback(
+    """
+    switchOn => {       
+       document.documentElement.setAttribute('data-bs-theme', switchOn ? 'light' : 'dark');  
+       return window.dash_clientside.no_update
+    }
+    """,
+    Output("switch", "id"),
+    Input("switch", "value"),
+)
 
 # collapsing the data table
 @app.callback(

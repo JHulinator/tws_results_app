@@ -5,6 +5,8 @@ from dash import Dash, html, dash_table, dcc, Input, Output, State, callback, Pa
 import dash_bootstrap_components as dbc
 import dash_ag_grid as dag
 from dash_bootstrap_templates import ThemeChangerAIO, template_from_url
+import plotly.graph_objects as go
+import plotly.io as pio
 
 import pandas as pd
 import numpy as np
@@ -425,7 +427,11 @@ color_mode_switch =  html.Span(
     ]
 )
 
-theme_controls = ThemeChangerAIO(aio_id='theme', offcanvas_props={'placement':'end'}, button_props={'color':'secondary', 'children':html.I(className='bi bi-gear')})
+theme_controls = ThemeChangerAIO(aio_id='theme', 
+                                 offcanvas_props={'placement':'end'}, 
+                                 button_props={'color':'secondary', 'children':html.I(className='bi bi-gear')},
+                                 radio_props={'value':dbc.themes.FLATLY}
+                                 )
 theme_selection_canvas = theme_controls.children[1]
 theme_selection_canvas.children = [color_mode_switch, html.Hr()] + theme_selection_canvas.children
 
@@ -672,12 +678,20 @@ collapse = dbc.Collapse(
     is_open=False
 )
 
+# Create the figures for each graph
+# fig_splits = go.Figure()
+# fig_splits.update_layout(template= 'minty')
+
 # region Tabs
-tab1 = dbc.Tab([], 
+animation_tab = dbc.Tab([], 
                label='Animation', 
                class_name='h-4'
                )
-tab2 = dbc.Tab([], 
+split_tab = dbc.Tab([
+    dcc.Graph(figure=go.Figure(),
+              id='split_graph'
+              )
+], 
                label='Split Times', 
                class_name='h-4'
                )
@@ -690,7 +704,7 @@ tab4 = dbc.Tab([],
                class_name='h-4'
                )
 
-tabs = dbc.Card(dbc.Tabs([tab1, tab2, tab3, tab4]))
+tabs = dbc.Card(dbc.Tabs([split_tab, tab3, tab4, animation_tab]))
 # endregion
 # endregion -----------------------------------------------------------------------------------------------------------
 
@@ -1193,6 +1207,21 @@ def time_filter_selected(time_filter, year_filter, disp_typ, class_filter, pos_f
         cl_pos_filter=cl_pos_filter, gender_filter=gender_filter, count_filter=count_filter, rudder_filter=rudder_filter,
         blade_filter=blade_filter, masters_filter=masters_filter, adult_youth_filter=adult_youth_filter,time_filter=time_filter
         ).to_dict('records')
+
+
+@app.callback(
+    Output('split_graph', 'figure'),
+    Input(ThemeChangerAIO.ids.radio('theme'), 'value'),
+    Input("switch", "value"),
+    State('split_graph', 'figure'),
+)
+def update_split_graph(theme, switch_on, fig):
+    template_name = theme.split('/')[-2]
+    template = pio.templates[template_name] if switch_on else pio.templates[f'{template_name}_dark']
+    fig = go.Figure(fig)
+    # fig.update_layout(template=template_from_url(theme))
+    fig.update_layout(template=template)
+    return fig
 # endregion -----------------------------------------------------------------------------------------------------------
 
 

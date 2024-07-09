@@ -425,15 +425,10 @@ color_mode_switch =  html.Span(
     ]
 )
 
-theme_changer = ThemeChangerAIO(aio_id='theme', offcanvas_props={'placement':'end'}, button_props={'color':'secondary'})
-theme_changer.children[0].children = html.I(className='bi bi-gear')
-theme_controls = dbc.Stack(
-    [
-        theme_changer, # ThemeChangerAIO(aio_id='theme', radio_props={}, button_props={'children':'bi bi-funnel'}, offcanvas_props={'placement':'end'}),
-        color_mode_switch
-    ],
-    direction='vertical',
-)
+theme_controls = ThemeChangerAIO(aio_id='theme', offcanvas_props={'placement':'end'}, button_props={'color':'secondary', 'children':html.I(className='bi bi-gear')})
+theme_selection_canvas = theme_controls.children[1]
+theme_selection_canvas.children = [color_mode_switch, html.Hr()] + theme_selection_canvas.children
+
 
 years_ckb = dbc.Checklist(
             options=[dict(zip(['label', 'value'], [name, name])) for name in reversed(years)],
@@ -707,16 +702,10 @@ def main():
     # region Build the app layout
 
     app.layout = dbc.Container([
-        # dbc.Row([
-        #     # theme_controls,
-        #     # html.Div('Texas Water Safari Results', className='text-primary text-center fs-3'),
-        #     dbc.Col('Texas Water Safari Results', className='text-primary text-center fs-3'),
-        #     dbc.Col(theme_controls, width='auto')
-        # ]),
         html.Div(dbc.Stack(
             [
                 # html.Div('test'),
-                html.Div('Texas Water Safari Results', className='mx-auto text-primary text-center fs-3'), # text-primary text-center fs-3
+                html.Div('Texas Water Safari Results', className='mx-auto text-primary text-center fs-3'),
                 html.Div(theme_controls)
             ],
             direction='horizontal'

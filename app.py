@@ -402,6 +402,19 @@ def filter_data(df:pd.DataFrame, disp_typ:str='Time of day', year_filter:List[in
     filtered.rename(columns=dict(zip(data_cols, cps)), inplace=True)
     filtered.reset_index(inplace=True, drop=True)
     return filtered
+
+def make_split_plot(df:pd.DataFrame) -> go.Figure:
+    fig = go.Figure(layout_showlegend=True)
+    for cp in df.columns.values:
+        fig.add_trace(go.Box(
+            y=df[cp],
+            name=cp,
+            marker_color='royalblue',
+            boxmean=False, # 'sd'
+            boxpoints=False,
+            showlegend=False
+        ))
+    return fig
 # endregion -----------------------------------------------------------------------------------------------------------
 
 
@@ -1222,6 +1235,15 @@ def update_split_graph(theme, switch_on, fig):
     # fig.update_layout(template=template_from_url(theme))
     fig.update_layout(template=template)
     return fig
+
+@app.callback(
+    Output('split_graph', 'figure', allow_duplicate=True),
+    Input('grid','rowData'),
+    prevent_initial_call=True
+)
+def update_graphed_data(data):
+    df = pd.DataFrame.from_dict(data=data)
+    return make_split_plot(df=df)
 # endregion -----------------------------------------------------------------------------------------------------------
 
 

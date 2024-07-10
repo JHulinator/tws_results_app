@@ -401,11 +401,16 @@ def filter_data(df:pd.DataFrame, disp_typ:str='Time of day', year_filter:List[in
     
     filtered.rename(columns=dict(zip(data_cols, cps)), inplace=True)
     filtered.reset_index(inplace=True, drop=True)
+    
+    # Drop all empty columns
+    filtered = filtered.loc[:,filtered.notna().any(axis=0)]
+    
     return filtered
 
 def make_split_plot(df:pd.DataFrame) -> go.Figure:
     fig = go.Figure(layout_showlegend=True)
-    for cp in df.columns.values:
+    #print(df.columns[5:])
+    for cp in df.columns[5:].values:
         fig.add_trace(go.Box(
             y=df[cp],
             name=cp,
@@ -663,7 +668,7 @@ grid = dag.AgGrid(
                  } for i, f in enumerate(data.columns)],
     rowData= data.to_dict("records"), # df.loc[:,'Overall Place':'Boat #'].to_dict("records"),
     defaultColDef={"flex": 1, "minWidth": 40, "sortable": True, "resizable": True,},
-    dashGridOptions={"rowSelection":"multiple"},
+    dashGridOptions={'rowSelection':'multiple'},
     style={'--ag-grid-size': 3,
            '--ag-row-height':3},
     columnSizeOptions={'skipHeader':True, 'keys':list(data.columns[3:].values)},

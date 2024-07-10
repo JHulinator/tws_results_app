@@ -6,6 +6,7 @@ import dash_bootstrap_components as dbc
 import dash_ag_grid as dag
 from dash_bootstrap_templates import ThemeChangerAIO, template_from_url
 import plotly.graph_objects as go
+import plotly.express as px
 import plotly.io as pio
 
 import pandas as pd
@@ -30,6 +31,33 @@ TWS_TOTAL_MILES: float
 TWS_CHECKPOINTS: pd.DataFrame
 DEBUG = True
 CLASS_LIST = list(pd.read_csv('data\\class_list.csv', sep=',')['class'])
+PLOT_COLORS = {
+    0:'--bs-blue', # #2c3e50
+    1:'--bs-red', # #e74c3c
+    2:'--bs-green', ##18bc9c
+    3:'--bs-orange', ##fd7e14
+    4:'--bs-indigo', ##6610f2
+    5:'--bs-teal',
+    6:'--bs-gray',
+    7:'--bs-cyan',
+    8:'--bs-yellow',
+    9:'--bs-purple',
+    10:'--bs-pink',
+    }
+
+# PLOT_COLORS = {
+#     0:'primary',
+#     1:'secondary',
+#     2:'success',
+#     3:'warning',
+#     4:'danger',
+#     5:'info',
+#     # 6:'gray',
+#     # 7:'cyan',
+#     # 8:'yellow',
+#     # 9:'purple',
+#     # 10:'pink',
+#     }
 
 # Global Variables
 # stylesheet with the .dbc class to style  dcc, DataTable and AG Grid components with a Bootstrap theme
@@ -319,6 +347,7 @@ def get_raw_data(year: int) -> pd.DataFrame:
     day_dict = {1:'Sat', 2:'Sun', 3:'Mon', 4:'Tue', 5:'Wed'}
     
     last_cp = None
+    last_mil_i = 0
     for i, name in enumerate(cp_cols):
         if name in df.columns:
             df[f'{name}_TOD'] = df[name].apply(lambda x: f'{day_dict.setdefault(1+x.days+1*(divmod(x.seconds, 3600)[0]>15))} {9+divmod(x.seconds, 3600)[0]}:{divmod(divmod(x.seconds, 3600)[1], 60)[0]}')
@@ -329,10 +358,18 @@ def get_raw_data(year: int) -> pd.DataFrame:
             else:
                 df[f'{name}_ST'] = (df[name] - df[last_cp]).apply(lambda x: f'{divmod(x.seconds, 3600)[0] + 24*x.days}:{divmod(divmod(x.seconds, 3600)[1], 60)[0]}:{divmod(divmod(x.seconds, 3600)[1], 60)[1]}')
                 last_cp = name
-            m = TWS_CHECKPOINTS.loc[name, 'Milage'] - TWS_CHECKPOINTS['Milage'].iloc[i]
-            h = str_to_hours(df[f'{name}_ST']) 
-            df[f'{name}_SS'] = m / h
-            df[f'{name}_SS'].loc[df[f'{name}_SS'] == np.inf] = 0.0
+            
+            h = str_to_hours(df[f'{name}_ST'])
+            m = TWS_CHECKPOINTS.loc[name, 'Milage'] - TWS_CHECKPOINTS['Milage'].iloc[last_mil_i]
+            if h.sum() != 0:
+                df[f'{name}_SS'] = m / h
+                last_mil_i = i
+            else:
+                df[f'{name}_SS'] = 0.0
+                
+            
+            
+            # df[f'{name}_SS'].loc[df[f'{name}_SS'] == np.inf] = 0.0
     
 
     # Add column for class place
@@ -389,7 +426,7 @@ def filter_data(df:pd.DataFrame, disp_typ:str='Time of day', year_filter:List[in
     elif disp_typ == 'Split time':
         key = '_ST'
     elif disp_typ == 'Speed':
-        key = '_S'
+        key = '_SS'
     else:
         key = ''
 
@@ -410,15 +447,18 @@ def filter_data(df:pd.DataFrame, disp_typ:str='Time of day', year_filter:List[in
 def make_split_plot(df:pd.DataFrame) -> go.Figure:
     fig = go.Figure(layout_showlegend=True)
     #print(df.columns[5:])
-    for cp in df.columns[5:].values:
+
+    for i, cp in enumerate(df.columns[5:].values):
         fig.add_trace(go.Box(
             y=df[cp],
             name=cp,
-            marker_color='royalblue',
+            # marker_color='royalblue',
+            # marker_color=PLOT_COLORS[(i-(i//len(PLOT_COLORS)*len(PLOT_COLORS)))],
             boxmean=False, # 'sd'
             boxpoints=False,
             showlegend=False
         ))
+
     return fig
 # endregion -----------------------------------------------------------------------------------------------------------
 
@@ -659,12 +699,14 @@ controls = dbc.Collapse([
 data = filter_data(df=df,disp_typ='Time of day')
 grid = dag.AgGrid(
     id="grid",
-    columnDefs=[{"field": f,
+    columnDefs=[{'field': f,
                  'filter':(i==4),
                  'wrapText':(i==4),
                  'sortable':(i!=4),
-                 "autoHeight": True,
-                 'minWidth': 80 + (i==4)*360 - 40*((i==0)|(i==1)|(i==2)|(i==3))
+                 'autoHeight': True,
+                 'minWidth': 80 + (i==4)*360 - 40*((i==0)|(i==1)|(i==2)|(i==3)),
+                 'checkboxSelection':(i==4),
+                 'headerCheckboxSelection':(i==4)
                  } for i, f in enumerate(data.columns)],
     rowData= data.to_dict("records"), # df.loc[:,'Overall Place':'Boat #'].to_dict("records"),
     defaultColDef={"flex": 1, "minWidth": 40, "sortable": True, "resizable": True,},
@@ -1219,7 +1261,7 @@ def adult_youth_filter_selected(adult_youth_filter, year_filter, disp_typ, class
 )
 def time_filter_selected(time_filter, year_filter, disp_typ, class_filter, pos_filter,
                             cl_pos_filter,gender_filter, count_filter, blade_filter, rudder_filter, masters_filter, adult_youth_filter):
-    print(time_filter)
+  
     return filter_data(
         df=df, disp_typ=disp_typ, year_filter=year_filter, class_filter=class_filter, pos_filter=pos_filter, 
         cl_pos_filter=cl_pos_filter, gender_filter=gender_filter, count_filter=count_filter, rudder_filter=rudder_filter,
@@ -1230,7 +1272,7 @@ def time_filter_selected(time_filter, year_filter, disp_typ, class_filter, pos_f
 @app.callback(
     Output('split_graph', 'figure'),
     Input(ThemeChangerAIO.ids.radio('theme'), 'value'),
-    Input("switch", "value"),
+    Input('switch', 'value'),
     State('split_graph', 'figure'),
 )
 def update_split_graph(theme, switch_on, fig):
@@ -1244,11 +1286,21 @@ def update_split_graph(theme, switch_on, fig):
 @app.callback(
     Output('split_graph', 'figure', allow_duplicate=True),
     Input('grid','rowData'),
+    State('switch', 'value'),
+    State(ThemeChangerAIO.ids.radio('theme'), 'value'),
     prevent_initial_call=True
 )
-def update_graphed_data(data):
+def update_graphed_data(data, switch_on, theme):
+    # Create the figure form the new grid data
     df = pd.DataFrame.from_dict(data=data)
-    return make_split_plot(df=df)
+    fig = make_split_plot(df=df)
+    
+    # Color the figure
+    template_name = theme.split('/')[-2]
+    template = pio.templates[template_name] if switch_on else pio.templates[f'{template_name}_dark']
+    fig.update_layout(template=template)
+
+    return fig
 # endregion -----------------------------------------------------------------------------------------------------------
 
 

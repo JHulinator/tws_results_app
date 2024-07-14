@@ -299,8 +299,8 @@ def get_raw_data(year: int) -> pd.DataFrame:
     # The CSV file has a lot of empty cells (for excel hell formatting). We are now going to get rid of these
     # meaningless cells.
     df.drop(df.columns[df.columns.str.contains('Unnamed',case = False)],axis = 1, inplace = True) # This Drops all the unnamed columns
-    df.iloc[:, 4:] = df.iloc[:, 4:].shift(-2) # This shifts the time data up so that total cumulative time is aligned with team info line. This will be the only data that is kept
-    df = df[df[df.columns[0]].notna()] # This drops all the rows that don't have info in the first column
+    df.iloc[:, 4:] = df.iloc[:, 4:].shift(-1) # This shifts the time data up so that total cumulative time is aligned with team info line. This will be the only data that is kept
+    df = df.loc[df['Overall Place'].notna()]# df[df[df.columns[0]].notna()] # This drops all the rows that don't have info in the first column
     df.reset_index(drop=True, inplace=True) # This resets the index of the rows that are left
 
 
@@ -341,6 +341,20 @@ def get_raw_data(year: int) -> pd.DataFrame:
     # Format newlines for plotly to recognize
     df['Team Members'] = df['Team Members'].str.replace('\n\n', '\n')
     df['Team Members'] = df['Team Members'].str.replace('\n', '; ')
+
+
+    # Rearrange the wide split data into long split data
+    df = pd.melt(df,
+    id_vars=['Overall Place', 'Recognition', 'Team Members', 'Boat #', 'Class', 'Gender', 'Max Boat Len',
+       'Min Boat Width', 'Rudder', 'Double Blade', 'Masters', 'Adult Youth',
+       'Competitors', 'Team Captions', 'Competitor count'],
+       var_name='Split Name',
+       value_name='Split Time'
+       )
+
+    # Add a column with the milage at each split
+    df['Mile'] = df['Split Name'].apply(lambda a: TWS_CHECKPOINTS.loc[a, 'Milage'])
+
 
     # Create columns with formatted split times: time_of_day, total_time, split_time
     cp_cols = list(TWS_CHECKPOINTS.axes[0].values[1:])

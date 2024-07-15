@@ -389,7 +389,7 @@ def get_raw_data(year: int) -> pd.DataFrame:
     df['Split Speed'] = df.apply(lambda x: x['Split Milage'] / (x['Split Time'].seconds / 3600), axis=1)
 
     # Add a column for the finish time
-    df['Finish time'] = df.apply(lambda z: df['Hours'].loc[df['Boat #'] == z['Boat #']].max(), axis=1)
+    df['Finish time'] = df.apply(lambda z: df['Hours'].loc[df['Boat #'] == z['Boat #']].max().seconds / 3600 + df['Hours'].loc[df['Boat #'] == z['Boat #']].max().days * 24, axis=1)
     
     # print('Exit: get_raw_data ---------------\n')
     return df
@@ -405,15 +405,16 @@ def get_all_raw_data() -> pd.DataFrame:
     return df
 
 
-def filter_data(df:pd.DataFrame, disp_typ:str='Time of day', year_filter:List[int]=years, class_filter:List[str]=CLASS_LIST,
+def filter_data(year_filter:List[int]=years, class_filter:List[str]=CLASS_LIST,
                 pos_filter:int=0, cl_pos_filter:int=0, gender_filter:List[str]=['Undefined', 'Male', 'Female', 'Mixed'],
                 count_filter:List[int]=[1,2,3,4,5,6], rudder_filter:bool=False, blade_filter:bool=False, 
                 masters_filter:bool=False, adult_youth_filter:bool=False, time_filter:List[float]=[0, 100]) -> pd.DataFrame:
     
     year_filter = list(map(int, year_filter)) # Convert to int if not already
+    time_filter = list(map(float, time_filter))
     if pos_filter == 0: pos_filter = np.inf
     if cl_pos_filter == 0: cl_pos_filter = np.inf
-
+    df = full_df
     filtered = df.loc[
                 (df['year'].isin(year_filter)) & 
                 (df['Class'].isin(class_filter)) & 
@@ -424,34 +425,26 @@ def filter_data(df:pd.DataFrame, disp_typ:str='Time of day', year_filter:List[in
                 (~(rudder_filter & df['Rudder'])) &
                 (~(blade_filter & df['Double Blade'])) & 
                 (~(masters_filter & (masters_filter ^ df['Masters']))) & 
-                (~(adult_youth_filter & (adult_youth_filter ^ df['Adult Youth']))) #&
-                #((df['Finish time'] >= time_filter[0]) & (df['Finish time'] <= time_filter[1]))
+                (~(adult_youth_filter & (adult_youth_filter ^ df['Adult Youth']))) &
+                ((df['Finish time'] >= time_filter[0]) & (df['Finish time'] <= time_filter[1]))
                 ]
-    cps = list(TWS_CHECKPOINTS.axes[0].values[1:])
-    # ['Time of day', 'Total time', 'Split time', 'Speed']
     
-    if disp_typ == 'Time of day':
-        key = 'time_of_day'
-    elif disp_typ == 'Total time':
-        key = 'str_hours'
-    elif disp_typ == 'Split time':
-        key = 'str_split_time'
-    elif disp_typ == 'Speed':
-        key = 'Split Speed'
-    else:
-        key = 'str_split_time'
-
-    # data_cols = [x + key for x in cps]
+    # cps = list(TWS_CHECKPOINTS.axes[0].values[1:])
+    # # ['Time of day', 'Total time', 'Split time', 'Speed']
     
 
-    cols = ['year', 'Overall Place', 'Class Place', 'Class', 'Team Members'] + [key]
-    filtered = filtered.loc[:, cols]
+
+    # # data_cols = [x + key for x in cps]
     
-    # filtered.rename(columns=dict(zip(data_cols, cps)), inplace=True)
-    filtered.reset_index(inplace=True, drop=True)
+
+    # cols = ['year', 'Overall Place', 'Class Place', 'Class', 'Team Members'] + [key]
+    # filtered = filtered.loc[:, cols]
     
-    # Drop all empty columns
-    filtered = filtered.loc[:,filtered.notna().any(axis=0)]
+    # # filtered.rename(columns=dict(zip(data_cols, cps)), inplace=True)
+    # filtered.reset_index(inplace=True, drop=True)
+    
+    # # Drop all empty columns
+    # filtered = filtered.loc[:,filtered.notna().any(axis=0)]
     
     return filtered
 
@@ -471,19 +464,95 @@ def make_split_plot(df:pd.DataFrame) -> go.Figure:
         ))
 
     return fig
+
+def update_year(id:str, selected_yrs, multi_value) -> List:
+    last5years = [years[i] for i in np.argsort(years)[-5:]]
+    last10years = [years[i] for i in np.argsort(years)[-10:]]
+    if id == 'year_filter':
+        if selected_yrs == [max(years)]:
+            return_val= 1, selected_yrs
+        elif len(selected_yrs) == 5 and set(selected_yrs) == set(last5years):
+            return_val= 5, selected_yrs
+        elif len(selected_yrs) == 10 and set(selected_yrs) == set(last10years):
+            return_val= 10, selected_yrs
+        elif set(selected_yrs) == set(years):
+            return_val= 0, selected_yrs
+        else:
+            return_val= -1, selected_yrs
+    elif id == 'year-multi-select':
+        if multi_value == 1:
+            return_val= multi_value, [max(years)]
+        elif multi_value == 5:
+            return_val= multi_value, last5years
+        elif multi_value == 10:
+            return_val= multi_value, last10years
+        elif multi_value == 0:
+            return_val= multi_value, years
+    else:
+        return_val= multi_value, selected_yrs
+    return return_val
+
+def update_class(id:str, class_filter, class_filter_an) -> List:
+    if id == 'class_filter':
+        if set(class_filter) == set(CLASS_LIST):
+            class_filter_an = 1
+        elif class_filter == []:
+            class_filter_an = 0
+        else:
+            class_filter_an = None
+    elif id == 'class_filter_an':
+        if class_filter_an == 0:
+            class_filter = []
+        elif class_filter_an == 1:
+            class_filter = CLASS_LIST
+
+    return class_filter, class_filter_an
+
+def update_gender(id:str, gender_filter, gender_filter_an) -> List:
+    gender_list = ['Undefined', 'Male', 'Female', 'Mixed']
+    if id == 'gender_filter':
+        if set(gender_list) == set(gender_filter):
+            gender_filter_an = 1
+        elif gender_filter == []:
+            gender_filter_an = 0
+        else:
+            gender_filter_an = None
+    elif id == 'gender_filter_an':
+        if gender_filter_an == 0:
+            gender_filter = []
+        elif gender_filter_an == 1:
+            gender_filter = gender_list
+    return gender_filter, gender_filter_an
+
+def update_count(id:str, count_filter, count_filter_an) -> List:
+    allowable_count = [1,2,3,4,5,6]
+    if id == 'count_filter':
+        if set(count_filter) == set(allowable_count):
+            count_filter_an = 1
+        elif count_filter == []:
+            count_filter_an = 0
+        else:
+            count_filter_an = None
+    elif id == 'count_filter_an':
+        if count_filter_an == 1:
+            count_filter = allowable_count
+        elif count_filter_an == 0:
+            count_filter = []
+    return count_filter, count_filter_an
 # endregion -----------------------------------------------------------------------------------------------------------
 
 
 # region Data Set Up --------------------------------------------------------------------------------------------------
 # Get the Raw Results Data
 if exists('all_data.csv'):
-    df = pd.read_csv('all_data.csv', sep=',', index_col=0)
+    full_df = pd.read_csv('all_data.csv', sep=',', index_col=0)
 else:
-    df = get_all_raw_data()
-    df.to_csv('all_data.csv')
+    full_df = get_all_raw_data()
+    full_df.to_csv('all_data.csv')
 
 if DEBUG:
-    print(df)
+    pass
+    # print(full_df)
 # endregion -----------------------------------------------------------------------------------------------------------
 
 
@@ -588,7 +657,7 @@ class_position_filter = dbc.DropdownMenu(
         )
     ]
 )
-min_hr = 29 + 46/60
+min_hr = round(full_df['Finish time'].min(), 2) # round(29 + 46/60, 1)
 finis_time_filter = html.Div(
     [
         dbc.Label('Finish Time [Hr]'),
@@ -707,7 +776,7 @@ controls = dbc.Collapse([
     is_open=False,
 )
 
-data = filter_data(df=df,disp_typ='Time of day')
+data = filter_data()
 grid = dag.AgGrid(
     id="grid",
     columnDefs=[{'field': f,
@@ -802,7 +871,10 @@ def main():
         ),
         dbc.Row([controls], style={'padding':2}),
         dbc.Row([collapse],style={'padding':2}),
-        dbc.Row([tabs], style={'padding':3},align='stretch')
+        dbc.Row([tabs], style={'padding':3},align='stretch'),
+
+        # dcc.Store stores the data value
+        dcc.Store(id='data', data=data.to_json(orient='split'))
     ],
     fluid=True,
     class_name="dbc dbc-ag-grid",
@@ -847,471 +919,568 @@ def toggle_filter_collapse(n, is_open):
         return not is_open
     return is_open
 
-# Selecting the year
+
+# Data Filtered
 @app.callback(
-    Output('year-multi-select', 'value', allow_duplicate=False),
+    # Outputs
+    Output('year-multi-select', 'value'),
     Output('year_filter', 'value'),
-    Output('grid', 'rowData'),
-    Input('year_filter', 'value'),
-    Input('year-multi-select', 'value'),
-    State('disp_typ', 'value'),
-    State('class_filter', 'value'),
-    State('pos_filter', 'value'),
-    State('cl_pos_filter', 'value'),
-    State('gender_filter', 'value'),
-    State('count_filter', 'value'),
-    State('rudder_filter', 'value'),
-    State('blade_filter', 'value'),
-    State('masters_filter', 'value'),
-    State('adult_youth_filter', 'value'),
-    State('time_filter', 'value'),# 9
-)
-def year_selected(selected_yrs, multi_value, disp_typ, class_filter,pos_filter, cl_pos_filter, gender_filter,count_filter, 
-                    rudder_filter, blade_filter, masters_filter, adult_youth_filter, time_filter):
-
-    trigger_id = ctx.triggered_id
-    last5years = [years[i] for i in np.argsort(years)[-5:]]
-    last10years = [years[i] for i in np.argsort(years)[-10:]]
-    if trigger_id == 'year_filter':
-        if selected_yrs == [max(years)]:
-            return_val= 1, selected_yrs
-        elif len(selected_yrs) == 5 and set(selected_yrs) == set(last5years):
-            return_val= 5, selected_yrs
-        elif len(selected_yrs) == 10 and set(selected_yrs) == set(last10years):
-            return_val= 10, selected_yrs
-        elif set(selected_yrs) == set(years):
-            return_val= 0, selected_yrs
-        else:
-            return_val= -1, selected_yrs
-    elif trigger_id == 'year-multi-select':
-        if multi_value == 1:
-            return_val= multi_value, [max(years)]
-        elif multi_value == 5:
-            return_val= multi_value, last5years
-        elif multi_value == 10:
-            return_val= multi_value, last10years
-        elif multi_value == 0:
-            return_val= multi_value, years
-    else:
-        return_val= multi_value, selected_yrs
-    year_filter = return_val[1]
-
-    new_data = filter_data(
-        df=df, disp_typ=disp_typ, year_filter=year_filter, class_filter=class_filter, pos_filter=pos_filter, 
-        cl_pos_filter=cl_pos_filter, gender_filter=gender_filter, count_filter=count_filter, rudder_filter=rudder_filter,
-        blade_filter=blade_filter, masters_filter=masters_filter, adult_youth_filter=adult_youth_filter, time_filter=time_filter
-    )
-
-    # return_val.append(new_data.to_dict('records'))
-    return return_val[0], return_val[1], new_data.to_dict('records')
-
-
-# Selecting Data display option
-@app.callback(
-    Output('grid', 'rowData', allow_duplicate=True),
-    
-    # Inputs
-    Input('disp_typ', 'value'),
-
-    # State vars
-    State('year_filter', 'value'),
-    State('class_filter', 'value'),
-    State('pos_filter', 'value'),
-    State('cl_pos_filter', 'value'),
-    State('gender_filter', 'value'),
-    State('count_filter', 'value'),
-    State('rudder_filter', 'value'),
-    State('blade_filter', 'value'),
-    State('masters_filter', 'value'),
-    State('adult_youth_filter', 'value'),
-    State('time_filter', 'value'),
-
-
-    prevent_initial_call=True
-)
-def disp_typ_selected(disp_typ, year_filter, class_filter,pos_filter, cl_pos_filter, gender_filter,count_filter, 
-                    rudder_filter, blade_filter, masters_filter, adult_youth_filter, time_filter):
-    return filter_data(
-        df=df, disp_typ=disp_typ, year_filter=year_filter, class_filter=class_filter, pos_filter=pos_filter, 
-        cl_pos_filter=cl_pos_filter, gender_filter=gender_filter, count_filter=count_filter, rudder_filter=rudder_filter,
-        blade_filter=blade_filter, masters_filter=masters_filter, adult_youth_filter=adult_youth_filter, time_filter=time_filter
-    ).to_dict('records')
-
-
-# Selecting boat class
-@app.callback(
     Output('class_filter', 'value'),
     Output('class_filter_an', 'value'),
-    Output('grid', 'rowData', allow_duplicate=True),
-    Input('class_filter', 'value'),
-    Input('class_filter_an', 'value'),
-
-    # State vars
-    State('year_filter', 'value'),
-    State('disp_typ', 'value'),
-    State('pos_filter', 'value'),
-    State('cl_pos_filter', 'value'),
-    State('gender_filter', 'value'),
-    State('count_filter', 'value'),
-    State('rudder_filter', 'value'),
-    State('blade_filter', 'value'),
-    State('masters_filter', 'value'),
-    State('adult_youth_filter', 'value'),
-    State('time_filter', 'value'),
-
-
-    prevent_initial_call=True
-)
-def class_filter_selected(class_filter, class_filter_an, year_filter, disp_typ, pos_filter, cl_pos_filter,
-                            gender_filter,count_filter, rudder_filter, blade_filter, masters_filter, adult_youth_filter, time_filter):
-
-    trigger_id = ctx.triggered_id
-
-    if trigger_id == 'class_filter':
-        if set(class_filter) == set(CLASS_LIST):
-            class_filter_an = 1
-        elif class_filter == []:
-            class_filter_an = 0
-        else:
-            class_filter_an = None
-    elif trigger_id == 'class_filter_an':
-        if class_filter_an == 0:
-            class_filter = []
-        elif class_filter_an == 1:
-            class_filter = CLASS_LIST
-    
-    # Filter and send new dataFrame
-    new_data = filter_data(
-        df=df, disp_typ=disp_typ, year_filter=year_filter, class_filter=class_filter, pos_filter=pos_filter, 
-        cl_pos_filter=cl_pos_filter, gender_filter=gender_filter, count_filter=count_filter, rudder_filter=rudder_filter,
-        blade_filter=blade_filter, masters_filter=masters_filter, adult_youth_filter=adult_youth_filter, time_filter=time_filter
-    ).to_dict('records')
-
-    return class_filter, class_filter_an, new_data
-
-
-# Selecting position filter
-@app.callback(
-    Output('grid', 'rowData', allow_duplicate=True),
-    Input('pos_filter', 'value'),
-
-    # State vars
-    State('year_filter', 'value'),
-    State('disp_typ', 'value'),
-    State('class_filter', 'value'),
-    State('cl_pos_filter', 'value'),
-    State('gender_filter', 'value'),
-    State('count_filter', 'value'),
-    State('rudder_filter', 'value'),
-    State('blade_filter', 'value'),
-    State('masters_filter', 'value'),
-    State('adult_youth_filter', 'value'),
-    State('time_filter', 'value'),
-
-    prevent_initial_call = True
-)
-def pos_filter_selected(pos_filter, year_filter, disp_typ, class_filter, cl_pos_filter,
-                            gender_filter,count_filter, rudder_filter, blade_filter, masters_filter, adult_youth_filter, time_filter):
-    return filter_data(
-        df=df, disp_typ=disp_typ, year_filter=year_filter, class_filter=class_filter, pos_filter=pos_filter, 
-        cl_pos_filter=cl_pos_filter, gender_filter=gender_filter, count_filter=count_filter, rudder_filter=rudder_filter,
-        blade_filter=blade_filter, masters_filter=masters_filter, adult_youth_filter=adult_youth_filter, time_filter=time_filter
-        ).to_dict('records')
-
-
-# Selecting class position filter
-@app.callback(
-    Output('grid', 'rowData', allow_duplicate=True),
-    Input('cl_pos_filter', 'value'),
-
-    # State vars
-    State('year_filter', 'value'),
-    State('disp_typ', 'value'),
-    State('class_filter', 'value'),
-    State('pos_filter', 'value'),
-    State('gender_filter', 'value'),
-    State('count_filter', 'value'),
-    State('rudder_filter', 'value'),
-    State('blade_filter', 'value'),
-    State('masters_filter', 'value'),
-    State('adult_youth_filter', 'value'),
-    State('time_filter', 'value'),
-
-    prevent_initial_call = True
-)
-def pos_filter_selected( cl_pos_filter, year_filter, disp_typ, class_filter, pos_filter,
-                            gender_filter,count_filter, rudder_filter, blade_filter, masters_filter, adult_youth_filter,time_filter):
-    return filter_data(
-        df=df, disp_typ=disp_typ, year_filter=year_filter, class_filter=class_filter, pos_filter=pos_filter, 
-        cl_pos_filter=cl_pos_filter, gender_filter=gender_filter, count_filter=count_filter, rudder_filter=rudder_filter,
-        blade_filter=blade_filter, masters_filter=masters_filter, adult_youth_filter=adult_youth_filter,time_filter=time_filter
-        ).to_dict('records')
-
-
-@app.callback(
     Output('gender_filter', 'value'),
     Output('gender_filter_an', 'value'),
-    Output('grid', 'rowData', allow_duplicate=True),
-    Input('gender_filter', 'value'),
-    Input('gender_filter_an', 'value'),
-
-    # State vars
-    State('year_filter', 'value'),
-    State('disp_typ', 'value'),
-    State('class_filter', 'value'),
-    State('pos_filter', 'value'),
-    State('cl_pos_filter', 'value'),
-    State('count_filter', 'value'),
-    State('rudder_filter', 'value'),
-    State('blade_filter', 'value'),
-    State('masters_filter', 'value'),
-    State('adult_youth_filter', 'value'),
-    State('time_filter', 'value'),
-
-    prevent_initial_call=True
-)
-def gender_filter_selected(gender_filter, gender_filter_an, year_filter, disp_typ, class_filter, pos_filter,
-                            cl_pos_filter,count_filter, rudder_filter, blade_filter, masters_filter, adult_youth_filter, time_filter):
-
-    trigger_id = ctx.triggered_id
-    gender_list = ['Undefined', 'Male', 'Female', 'Mixed']
-    if trigger_id == 'gender_filter':
-        if set(gender_list) == set(gender_filter):
-            gender_filter_an = 1
-        elif gender_filter == []:
-            gender_filter_an = 0
-        else:
-            gender_filter_an = None
-    elif trigger_id == 'gender_filter_an':
-        if gender_filter_an == 0:
-            gender_filter = []
-        elif gender_filter_an == 1:
-            gender_filter = gender_list
-
-    new_data = filter_data(
-        df=df, disp_typ=disp_typ, year_filter=year_filter, class_filter=class_filter, pos_filter=pos_filter, 
-        cl_pos_filter=cl_pos_filter, gender_filter=gender_filter, count_filter=count_filter, rudder_filter=rudder_filter,
-        blade_filter=blade_filter, masters_filter=masters_filter, adult_youth_filter=adult_youth_filter, time_filter=time_filter
-        ).to_dict('records')
-    return gender_filter, gender_filter_an, new_data
-
-
-@app.callback(
     Output('count_filter', 'value'),
     Output('count_filter_an', 'value'),
-    Output('grid', 'rowData', allow_duplicate=True),
+    Output('data', 'data'),
+    # Inputs
+    Input('year_filter', 'value'),
+    Input('year-multi-select', 'value'),
+    Input('class_filter', 'value'),
+    Input('class_filter_an', 'value'),
+    Input('pos_filter', 'value'),
+    Input('cl_pos_filter', 'value'),
+    Input('gender_filter', 'value'),
+    Input('gender_filter_an', 'value'),
     Input('count_filter', 'value'),
     Input('count_filter_an', 'value'),
-
-    # State vars
-    State('year_filter', 'value'),
-    State('disp_typ', 'value'),
-    State('class_filter', 'value'),
-    State('pos_filter', 'value'),
-    State('cl_pos_filter', 'value'),
-    State('gender_filter', 'value'),
-    State('rudder_filter', 'value'),
-    State('blade_filter', 'value'),
-    State('masters_filter', 'value'),
-    State('adult_youth_filter', 'value'),
-    State('time_filter', 'value'),
-    prevent_initial_call=True
-)
-def count_filter_selected(count_filter, count_filter_an, year_filter, disp_typ, class_filter, pos_filter,
-                            cl_pos_filter,gender_filter, rudder_filter, blade_filter, masters_filter, adult_youth_filter,time_filter):
-    trigger_id = ctx.triggered_id
-    allowable_count = [1,2,3,4,5,6]
-    if trigger_id == 'count_filter':
-        if set(count_filter) == set(allowable_count):
-            count_filter_an = 1
-        elif count_filter == []:
-            count_filter_an = 0
-        else:
-            count_filter_an = None
-    elif trigger_id == 'count_filter_an':
-        if count_filter_an == 1:
-            count_filter = allowable_count
-        elif count_filter_an == 0:
-            count_filter = []
-
-    
-    new_data = filter_data(
-        df=df, disp_typ=disp_typ, year_filter=year_filter, class_filter=class_filter, pos_filter=pos_filter, 
-        cl_pos_filter=cl_pos_filter, gender_filter=gender_filter, count_filter=count_filter, rudder_filter=rudder_filter,
-        blade_filter=blade_filter, masters_filter=masters_filter, adult_youth_filter=adult_youth_filter, time_filter=time_filter
-        ).to_dict('records')
-    return count_filter, count_filter_an, new_data
-
-
-@app.callback(
-    Output('grid', 'rowData', allow_duplicate=True),
     Input('rudder_filter', 'value'),
-
-    # State vars
-    State('year_filter', 'value'),
-    State('disp_typ', 'value'),
-    State('class_filter', 'value'),
-    State('pos_filter', 'value'),
-    State('cl_pos_filter', 'value'),
-    State('gender_filter', 'value'),
-    State('count_filter', 'value'),
-    State('blade_filter', 'value'),
-    State('masters_filter', 'value'),
-    State('adult_youth_filter', 'value'),
-    State('time_filter', 'value'),
-    prevent_initial_call=True
-)
-def rudder_filter_selected(rudder_filter, year_filter, disp_typ, class_filter, pos_filter,
-                            cl_pos_filter,gender_filter, count_filter, blade_filter, masters_filter, adult_youth_filter, time_filter):
-    return filter_data(
-        df=df, disp_typ=disp_typ, year_filter=year_filter, class_filter=class_filter, pos_filter=pos_filter, 
-        cl_pos_filter=cl_pos_filter, gender_filter=gender_filter, count_filter=count_filter, rudder_filter=rudder_filter,
-        blade_filter=blade_filter, masters_filter=masters_filter, adult_youth_filter=adult_youth_filter,time_filter=time_filter
-        ).to_dict('records')
-
-
-@app.callback(
-    Output('grid', 'rowData', allow_duplicate=True),
     Input('blade_filter', 'value'),
-
-    # State vars
-    State('year_filter', 'value'),
-    State('disp_typ', 'value'),
-    State('class_filter', 'value'),
-    State('pos_filter', 'value'),
-    State('cl_pos_filter', 'value'),
-    State('gender_filter', 'value'),
-    State('count_filter', 'value'),
-    State('rudder_filter', 'value'),
-    State('masters_filter', 'value'),
-    State('adult_youth_filter', 'value'),
-    State('time_filter', 'value'),
-    prevent_initial_call=True
-)
-def blade_filter_selected(blade_filter, year_filter, disp_typ, class_filter, pos_filter,
-                            cl_pos_filter,gender_filter, count_filter, rudder_filter, masters_filter, adult_youth_filter, time_filter):
-    return filter_data(
-        df=df, disp_typ=disp_typ, year_filter=year_filter, class_filter=class_filter, pos_filter=pos_filter, 
-        cl_pos_filter=cl_pos_filter, gender_filter=gender_filter, count_filter=count_filter, rudder_filter=rudder_filter,
-        blade_filter=blade_filter, masters_filter=masters_filter, adult_youth_filter=adult_youth_filter,time_filter=time_filter
-        ).to_dict('records')
-
-
-
-@app.callback(
-    Output('grid', 'rowData', allow_duplicate=True),
     Input('masters_filter', 'value'),
-
-    # State vars
-    State('year_filter', 'value'),
-    State('disp_typ', 'value'),
-    State('class_filter', 'value'),
-    State('pos_filter', 'value'),
-    State('cl_pos_filter', 'value'),
-    State('gender_filter', 'value'),
-    State('count_filter', 'value'),
-    State('blade_filter', 'value'),
-    State('rudder_filter', 'value'),
-    State('adult_youth_filter', 'value'),
-    State('time_filter', 'value'),
-    prevent_initial_call=True
-)
-def masters_filter_selected(masters_filter, year_filter, disp_typ, class_filter, pos_filter,
-                            cl_pos_filter,gender_filter, count_filter, blade_filter, rudder_filter, adult_youth_filter,time_filter):
-    return filter_data(
-        df=df, disp_typ=disp_typ, year_filter=year_filter, class_filter=class_filter, pos_filter=pos_filter, 
-        cl_pos_filter=cl_pos_filter, gender_filter=gender_filter, count_filter=count_filter, rudder_filter=rudder_filter,
-        blade_filter=blade_filter, masters_filter=masters_filter, adult_youth_filter=adult_youth_filter,time_filter=time_filter
-        ).to_dict('records')
-
-
-@app.callback(
-    Output('grid', 'rowData', allow_duplicate=True),
     Input('adult_youth_filter', 'value'),
-
-    # State vars
-    State('year_filter', 'value'),
-    State('disp_typ', 'value'),
-    State('class_filter', 'value'),
-    State('pos_filter', 'value'),
-    State('cl_pos_filter', 'value'),
-    State('gender_filter', 'value'),
-    State('count_filter', 'value'),
-    State('blade_filter', 'value'),
-    State('rudder_filter', 'value'),
-    State('masters_filter', 'value'),
-    State('time_filter', 'value'),
-    prevent_initial_call=True
-)
-def adult_youth_filter_selected(adult_youth_filter, year_filter, disp_typ, class_filter, pos_filter,
-                            cl_pos_filter,gender_filter, count_filter, blade_filter, rudder_filter, masters_filter, time_filter):
-    return filter_data(
-        df=df, disp_typ=disp_typ, year_filter=year_filter, class_filter=class_filter, pos_filter=pos_filter, 
-        cl_pos_filter=cl_pos_filter, gender_filter=gender_filter, count_filter=count_filter, rudder_filter=rudder_filter,
-        blade_filter=blade_filter, masters_filter=masters_filter, adult_youth_filter=adult_youth_filter,time_filter=time_filter
-        ).to_dict('records')
-
-
-@app.callback(
-    Output('grid', 'rowData', allow_duplicate=True),
     Input('time_filter', 'value'),
-
-    # State vars
-    State('year_filter', 'value'),
-    State('disp_typ', 'value'),
-    State('class_filter', 'value'),
-    State('pos_filter', 'value'),
-    State('cl_pos_filter', 'value'),
-    State('gender_filter', 'value'),
-    State('count_filter', 'value'),
-    State('blade_filter', 'value'),
-    State('rudder_filter', 'value'),
-    State('masters_filter', 'value'),
-    State('adult_youth_filter', 'value'),
-    prevent_initial_call=True
 )
-def time_filter_selected(time_filter, year_filter, disp_typ, class_filter, pos_filter,
-                            cl_pos_filter,gender_filter, count_filter, blade_filter, rudder_filter, masters_filter, adult_youth_filter):
-  
-    return filter_data(
-        df=df, disp_typ=disp_typ, year_filter=year_filter, class_filter=class_filter, pos_filter=pos_filter, 
-        cl_pos_filter=cl_pos_filter, gender_filter=gender_filter, count_filter=count_filter, rudder_filter=rudder_filter,
-        blade_filter=blade_filter, masters_filter=masters_filter, adult_youth_filter=adult_youth_filter,time_filter=time_filter
-        ).to_dict('records')
+def filter_update(year_filter, multi_value, class_filter, class_filter_an, pos_filter, cl_pos_filter, 
+                  gender_filter, gender_filter_an, count_filter, count_filter_an, rudder_filter, blade_filter, 
+                  masters_filter, adult_youth_filter, time_filter
+                  ):
+    # Find the ID of the input that triggered the callback
+    trigger_id = ctx.triggered_id
 
+    # Synchronize the input 
+    if trigger_id == 'year_filter' or trigger_id == 'year-multi-select':
+        multi_value, year_filter = update_year(id=trigger_id, selected_yrs=year_filter, multi_value=multi_value)
+    elif trigger_id == 'class_filter' or trigger_id == 'class_filter_an':
+        class_filter, class_filter_an = update_class(id=trigger_id, class_filter=class_filter, class_filter_an=class_filter_an)
+    elif trigger_id == 'gender_filter' or trigger_id == 'gender_filter_an':
+        gender_filter, gender_filter_an = update_gender(id=trigger_id, gender_filter=gender_filter, gender_filter_an=gender_filter_an)
+    elif trigger_id == 'count_filter' or trigger_id == 'count_filter_an':
+        count_filter, count_filter_an = update_count(id=trigger_id, count_filter=count_filter, count_filter_an=count_filter_an)
+    
+
+    # Filter the data
+    fd_df = filter_data(year_filter=year_filter, 
+                              class_filter=class_filter, pos_filter=pos_filter, cl_pos_filter=cl_pos_filter, 
+                              gender_filter=gender_filter, count_filter=count_filter, rudder_filter=rudder_filter, 
+                              blade_filter=blade_filter, masters_filter=masters_filter, adult_youth_filter=adult_youth_filter, 
+                              time_filter=time_filter
+                              )
+
+    return multi_value, year_filter, class_filter, class_filter_an, gender_filter, gender_filter_an, count_filter, count_filter_an, fd_df.to_json(orient='split')
 
 @app.callback(
     Output('split_graph', 'figure'),
     Input(ThemeChangerAIO.ids.radio('theme'), 'value'),
     Input('switch', 'value'),
+    Input('data', 'data'),
+    Input('disp_typ', 'value'),
     State('split_graph', 'figure'),
 )
-def update_split_graph(theme, switch_on, fig):
+def update_split_graph(theme, switch_on, data, disp_typ, fig):
+    # Find the ID of the input that triggered the callback
+    trigger_id = ctx.triggered_id
+
+    # Find the right color template
     template_name = theme.split('/')[-2]
     template = pio.templates[template_name] if switch_on else pio.templates[f'{template_name}_dark']
-    fig = go.Figure(fig)
-    # fig.update_layout(template=template_from_url(theme))
+
+    # If triggered by data change
+    if trigger_id =='data' or trigger_id == 'disp_typ':
+        fig = go.Figure()
+        # Add data to chart
+        if disp_typ == 'Time of day':
+            key = 'time_of_day'
+        elif disp_typ == 'Total time':
+            key = 'str_hours'
+        elif disp_typ == 'Split time':
+            key = 'str_split_time'
+        elif disp_typ == 'Speed':
+            key = 'Split Speed'
+        else:
+            key = 'str_split_time'
+
+        fig.add_traces(px.violin(pd.read_json(data,orient='split'), y=key, x='Split Name', color='year', box=True, points='all').data)
+    else:
+        # Else use the existing data
+        fig = go.Figure(fig)
+
     fig.update_layout(template=template)
     return fig
 
-@app.callback(
-    Output('split_graph', 'figure', allow_duplicate=True),
-    Input('grid','rowData'),
-    State('switch', 'value'),
-    State(ThemeChangerAIO.ids.radio('theme'), 'value'),
-    prevent_initial_call=True
-)
-def update_graphed_data(data, switch_on, theme):
-    # Create the figure form the new grid data
-    df = pd.DataFrame.from_dict(data=data)
-    fig = make_split_plot(df=df)
+# # Selecting the year
+# @app.callback(
+#     Output('year-multi-select', 'value', allow_duplicate=False),
+#     Output('year_filter', 'value'),
+#     Output('grid', 'rowData'),
+#     Input('year_filter', 'value'),
+#     Input('year-multi-select', 'value'),
+#     State('disp_typ', 'value'),
+#     State('class_filter', 'value'),
+#     State('pos_filter', 'value'),
+#     State('cl_pos_filter', 'value'),
+#     State('gender_filter', 'value'),
+#     State('count_filter', 'value'),
+#     State('rudder_filter', 'value'),
+#     State('blade_filter', 'value'),
+#     State('masters_filter', 'value'),
+#     State('adult_youth_filter', 'value'),
+#     State('time_filter', 'value'),
+# )
+# def year_selected(selected_yrs, multi_value, disp_typ, class_filter,pos_filter, cl_pos_filter, gender_filter,count_filter, 
+#                     rudder_filter, blade_filter, masters_filter, adult_youth_filter, time_filter):
+
+#     trigger_id = ctx.triggered_id
+#     last5years = [years[i] for i in np.argsort(years)[-5:]]
+#     last10years = [years[i] for i in np.argsort(years)[-10:]]
+#     if trigger_id == 'year_filter':
+#         if selected_yrs == [max(years)]:
+#             return_val= 1, selected_yrs
+#         elif len(selected_yrs) == 5 and set(selected_yrs) == set(last5years):
+#             return_val= 5, selected_yrs
+#         elif len(selected_yrs) == 10 and set(selected_yrs) == set(last10years):
+#             return_val= 10, selected_yrs
+#         elif set(selected_yrs) == set(years):
+#             return_val= 0, selected_yrs
+#         else:
+#             return_val= -1, selected_yrs
+#     elif trigger_id == 'year-multi-select':
+#         if multi_value == 1:
+#             return_val= multi_value, [max(years)]
+#         elif multi_value == 5:
+#             return_val= multi_value, last5years
+#         elif multi_value == 10:
+#             return_val= multi_value, last10years
+#         elif multi_value == 0:
+#             return_val= multi_value, years
+#     else:
+#         return_val= multi_value, selected_yrs
+#     year_filter = return_val[1]
+
+#     new_data = filter_data(
+#         df=df, disp_typ=disp_typ, year_filter=year_filter, class_filter=class_filter, pos_filter=pos_filter, 
+#         cl_pos_filter=cl_pos_filter, gender_filter=gender_filter, count_filter=count_filter, rudder_filter=rudder_filter,
+#         blade_filter=blade_filter, masters_filter=masters_filter, adult_youth_filter=adult_youth_filter, time_filter=time_filter
+#     )
+
+#     # return_val.append(new_data.to_dict('records'))
+#     return return_val[0], return_val[1], new_data.to_dict('records')
+
+
+# # Selecting Data display option
+# @app.callback(
+#     Output('grid', 'rowData', allow_duplicate=True),
     
-    # Color the figure
-    template_name = theme.split('/')[-2]
-    template = pio.templates[template_name] if switch_on else pio.templates[f'{template_name}_dark']
-    fig.update_layout(template=template)
+#     # Inputs
+#     Input('disp_typ', 'value'),
 
-    return fig
+#     # State vars
+#     State('year_filter', 'value'),
+#     State('class_filter', 'value'),
+#     State('pos_filter', 'value'),
+#     State('cl_pos_filter', 'value'),
+#     State('gender_filter', 'value'),
+#     State('count_filter', 'value'),
+#     State('rudder_filter', 'value'),
+#     State('blade_filter', 'value'),
+#     State('masters_filter', 'value'),
+#     State('adult_youth_filter', 'value'),
+#     State('time_filter', 'value'),
+
+
+#     prevent_initial_call=True
+# )
+# def disp_typ_selected(disp_typ, year_filter, class_filter,pos_filter, cl_pos_filter, gender_filter,count_filter, 
+#                     rudder_filter, blade_filter, masters_filter, adult_youth_filter, time_filter):
+#     return filter_data(
+#         df=df, disp_typ=disp_typ, year_filter=year_filter, class_filter=class_filter, pos_filter=pos_filter, 
+#         cl_pos_filter=cl_pos_filter, gender_filter=gender_filter, count_filter=count_filter, rudder_filter=rudder_filter,
+#         blade_filter=blade_filter, masters_filter=masters_filter, adult_youth_filter=adult_youth_filter, time_filter=time_filter
+#     ).to_dict('records')
+
+
+# # Selecting boat class
+# @app.callback(
+#     Output('class_filter', 'value'),
+#     Output('class_filter_an', 'value'),
+#     Output('grid', 'rowData', allow_duplicate=True),
+#     Input('class_filter', 'value'),
+#     Input('class_filter_an', 'value'),
+
+#     # State vars
+#     State('year_filter', 'value'),
+#     State('disp_typ', 'value'),
+#     State('pos_filter', 'value'),
+#     State('cl_pos_filter', 'value'),
+#     State('gender_filter', 'value'),
+#     State('count_filter', 'value'),
+#     State('rudder_filter', 'value'),
+#     State('blade_filter', 'value'),
+#     State('masters_filter', 'value'),
+#     State('adult_youth_filter', 'value'),
+#     State('time_filter', 'value'),
+
+
+#     prevent_initial_call=True
+# )
+# def class_filter_selected(class_filter, class_filter_an, year_filter, disp_typ, pos_filter, cl_pos_filter,
+#                             gender_filter,count_filter, rudder_filter, blade_filter, masters_filter, adult_youth_filter, time_filter):
+
+#     trigger_id = ctx.triggered_id
+
+#     if trigger_id == 'class_filter':
+#         if set(class_filter) == set(CLASS_LIST):
+#             class_filter_an = 1
+#         elif class_filter == []:
+#             class_filter_an = 0
+#         else:
+#             class_filter_an = None
+#     elif trigger_id == 'class_filter_an':
+#         if class_filter_an == 0:
+#             class_filter = []
+#         elif class_filter_an == 1:
+#             class_filter = CLASS_LIST
+    
+#     # Filter and send new dataFrame
+#     new_data = filter_data(
+#         df=df, disp_typ=disp_typ, year_filter=year_filter, class_filter=class_filter, pos_filter=pos_filter, 
+#         cl_pos_filter=cl_pos_filter, gender_filter=gender_filter, count_filter=count_filter, rudder_filter=rudder_filter,
+#         blade_filter=blade_filter, masters_filter=masters_filter, adult_youth_filter=adult_youth_filter, time_filter=time_filter
+#     ).to_dict('records')
+
+#     return class_filter, class_filter_an, new_data
+
+
+# # Selecting position filter
+# @app.callback(
+#     Output('grid', 'rowData', allow_duplicate=True),
+#     Input('pos_filter', 'value'),
+
+#     # State vars
+#     State('year_filter', 'value'),
+#     State('disp_typ', 'value'),
+#     State('class_filter', 'value'),
+#     State('cl_pos_filter', 'value'),
+#     State('gender_filter', 'value'),
+#     State('count_filter', 'value'),
+#     State('rudder_filter', 'value'),
+#     State('blade_filter', 'value'),
+#     State('masters_filter', 'value'),
+#     State('adult_youth_filter', 'value'),
+#     State('time_filter', 'value'),
+
+#     prevent_initial_call = True
+# )
+# def pos_filter_selected(pos_filter, year_filter, disp_typ, class_filter, cl_pos_filter,
+#                             gender_filter,count_filter, rudder_filter, blade_filter, masters_filter, adult_youth_filter, time_filter):
+#     return filter_data(
+#         df=df, disp_typ=disp_typ, year_filter=year_filter, class_filter=class_filter, pos_filter=pos_filter, 
+#         cl_pos_filter=cl_pos_filter, gender_filter=gender_filter, count_filter=count_filter, rudder_filter=rudder_filter,
+#         blade_filter=blade_filter, masters_filter=masters_filter, adult_youth_filter=adult_youth_filter, time_filter=time_filter
+#         ).to_dict('records')
+
+
+# # Selecting class position filter
+# @app.callback(
+#     Output('grid', 'rowData', allow_duplicate=True),
+#     Input('cl_pos_filter', 'value'),
+
+#     # State vars
+#     State('year_filter', 'value'),
+#     State('disp_typ', 'value'),
+#     State('class_filter', 'value'),
+#     State('pos_filter', 'value'),
+#     State('gender_filter', 'value'),
+#     State('count_filter', 'value'),
+#     State('rudder_filter', 'value'),
+#     State('blade_filter', 'value'),
+#     State('masters_filter', 'value'),
+#     State('adult_youth_filter', 'value'),
+#     State('time_filter', 'value'),
+
+#     prevent_initial_call = True
+# )
+# def pos_filter_selected( cl_pos_filter, year_filter, disp_typ, class_filter, pos_filter,
+#                             gender_filter,count_filter, rudder_filter, blade_filter, masters_filter, adult_youth_filter,time_filter):
+#     return filter_data(
+#         df=df, disp_typ=disp_typ, year_filter=year_filter, class_filter=class_filter, pos_filter=pos_filter, 
+#         cl_pos_filter=cl_pos_filter, gender_filter=gender_filter, count_filter=count_filter, rudder_filter=rudder_filter,
+#         blade_filter=blade_filter, masters_filter=masters_filter, adult_youth_filter=adult_youth_filter,time_filter=time_filter
+#         ).to_dict('records')
+
+
+# @app.callback(
+#     Output('gender_filter', 'value'),
+#     Output('gender_filter_an', 'value'),
+#     Output('grid', 'rowData', allow_duplicate=True),
+#     Input('gender_filter', 'value'),
+#     Input('gender_filter_an', 'value'),
+
+#     # State vars
+#     State('year_filter', 'value'),
+#     State('disp_typ', 'value'),
+#     State('class_filter', 'value'),
+#     State('pos_filter', 'value'),
+#     State('cl_pos_filter', 'value'),
+#     State('count_filter', 'value'),
+#     State('rudder_filter', 'value'),
+#     State('blade_filter', 'value'),
+#     State('masters_filter', 'value'),
+#     State('adult_youth_filter', 'value'),
+#     State('time_filter', 'value'),
+
+#     prevent_initial_call=True
+# )
+# def gender_filter_selected(gender_filter, gender_filter_an, year_filter, disp_typ, class_filter, pos_filter,
+#                             cl_pos_filter,count_filter, rudder_filter, blade_filter, masters_filter, adult_youth_filter, time_filter):
+
+#     trigger_id = ctx.triggered_id
+#     gender_list = ['Undefined', 'Male', 'Female', 'Mixed']
+#     if trigger_id == 'gender_filter':
+#         if set(gender_list) == set(gender_filter):
+#             gender_filter_an = 1
+#         elif gender_filter == []:
+#             gender_filter_an = 0
+#         else:
+#             gender_filter_an = None
+#     elif trigger_id == 'gender_filter_an':
+#         if gender_filter_an == 0:
+#             gender_filter = []
+#         elif gender_filter_an == 1:
+#             gender_filter = gender_list
+
+#     new_data = filter_data(
+#         df=df, disp_typ=disp_typ, year_filter=year_filter, class_filter=class_filter, pos_filter=pos_filter, 
+#         cl_pos_filter=cl_pos_filter, gender_filter=gender_filter, count_filter=count_filter, rudder_filter=rudder_filter,
+#         blade_filter=blade_filter, masters_filter=masters_filter, adult_youth_filter=adult_youth_filter, time_filter=time_filter
+#         ).to_dict('records')
+#     return gender_filter, gender_filter_an, new_data
+
+
+# @app.callback(
+#     Output('count_filter', 'value'),
+#     Output('count_filter_an', 'value'),
+#     Output('grid', 'rowData', allow_duplicate=True),
+#     Input('count_filter', 'value'),
+#     Input('count_filter_an', 'value'),
+
+#     # State vars
+#     State('year_filter', 'value'),
+#     State('disp_typ', 'value'),
+#     State('class_filter', 'value'),
+#     State('pos_filter', 'value'),
+#     State('cl_pos_filter', 'value'),
+#     State('gender_filter', 'value'),
+#     State('rudder_filter', 'value'),
+#     State('blade_filter', 'value'),
+#     State('masters_filter', 'value'),
+#     State('adult_youth_filter', 'value'),
+#     State('time_filter', 'value'),
+#     prevent_initial_call=True
+# )
+# def count_filter_selected(count_filter, count_filter_an, year_filter, disp_typ, class_filter, pos_filter,
+#                             cl_pos_filter,gender_filter, rudder_filter, blade_filter, masters_filter, adult_youth_filter,time_filter):
+#     trigger_id = ctx.triggered_id
+#     allowable_count = [1,2,3,4,5,6]
+#     if trigger_id == 'count_filter':
+#         if set(count_filter) == set(allowable_count):
+#             count_filter_an = 1
+#         elif count_filter == []:
+#             count_filter_an = 0
+#         else:
+#             count_filter_an = None
+#     elif trigger_id == 'count_filter_an':
+#         if count_filter_an == 1:
+#             count_filter = allowable_count
+#         elif count_filter_an == 0:
+#             count_filter = []
+
+    
+#     new_data = filter_data(
+#         df=df, disp_typ=disp_typ, year_filter=year_filter, class_filter=class_filter, pos_filter=pos_filter, 
+#         cl_pos_filter=cl_pos_filter, gender_filter=gender_filter, count_filter=count_filter, rudder_filter=rudder_filter,
+#         blade_filter=blade_filter, masters_filter=masters_filter, adult_youth_filter=adult_youth_filter, time_filter=time_filter
+#         ).to_dict('records')
+#     return count_filter, count_filter_an, new_data
+
+
+# @app.callback(
+#     Output('grid', 'rowData', allow_duplicate=True),
+#     Input('rudder_filter', 'value'),
+
+#     # State vars
+#     State('year_filter', 'value'),
+#     State('disp_typ', 'value'),
+#     State('class_filter', 'value'),
+#     State('pos_filter', 'value'),
+#     State('cl_pos_filter', 'value'),
+#     State('gender_filter', 'value'),
+#     State('count_filter', 'value'),
+#     State('blade_filter', 'value'),
+#     State('masters_filter', 'value'),
+#     State('adult_youth_filter', 'value'),
+#     State('time_filter', 'value'),
+#     prevent_initial_call=True
+# )
+# def rudder_filter_selected(rudder_filter, year_filter, disp_typ, class_filter, pos_filter,
+#                             cl_pos_filter,gender_filter, count_filter, blade_filter, masters_filter, adult_youth_filter, time_filter):
+#     return filter_data(
+#         df=df, disp_typ=disp_typ, year_filter=year_filter, class_filter=class_filter, pos_filter=pos_filter, 
+#         cl_pos_filter=cl_pos_filter, gender_filter=gender_filter, count_filter=count_filter, rudder_filter=rudder_filter,
+#         blade_filter=blade_filter, masters_filter=masters_filter, adult_youth_filter=adult_youth_filter,time_filter=time_filter
+#         ).to_dict('records')
+
+
+# @app.callback(
+#     Output('grid', 'rowData', allow_duplicate=True),
+#     Input('blade_filter', 'value'),
+
+#     # State vars
+#     State('year_filter', 'value'),
+#     State('disp_typ', 'value'),
+#     State('class_filter', 'value'),
+#     State('pos_filter', 'value'),
+#     State('cl_pos_filter', 'value'),
+#     State('gender_filter', 'value'),
+#     State('count_filter', 'value'),
+#     State('rudder_filter', 'value'),
+#     State('masters_filter', 'value'),
+#     State('adult_youth_filter', 'value'),
+#     State('time_filter', 'value'),
+#     prevent_initial_call=True
+# )
+# def blade_filter_selected(blade_filter, year_filter, disp_typ, class_filter, pos_filter,
+#                             cl_pos_filter,gender_filter, count_filter, rudder_filter, masters_filter, adult_youth_filter, time_filter):
+#     return filter_data(
+#         df=df, disp_typ=disp_typ, year_filter=year_filter, class_filter=class_filter, pos_filter=pos_filter, 
+#         cl_pos_filter=cl_pos_filter, gender_filter=gender_filter, count_filter=count_filter, rudder_filter=rudder_filter,
+#         blade_filter=blade_filter, masters_filter=masters_filter, adult_youth_filter=adult_youth_filter,time_filter=time_filter
+#         ).to_dict('records')
+
+
+
+# @app.callback(
+#     Output('grid', 'rowData', allow_duplicate=True),
+#     Input('masters_filter', 'value'),
+
+#     # State vars
+#     State('year_filter', 'value'),
+#     State('disp_typ', 'value'),
+#     State('class_filter', 'value'),
+#     State('pos_filter', 'value'),
+#     State('cl_pos_filter', 'value'),
+#     State('gender_filter', 'value'),
+#     State('count_filter', 'value'),
+#     State('blade_filter', 'value'),
+#     State('rudder_filter', 'value'),
+#     State('adult_youth_filter', 'value'),
+#     State('time_filter', 'value'),
+#     prevent_initial_call=True
+# )
+# def masters_filter_selected(masters_filter, year_filter, disp_typ, class_filter, pos_filter,
+#                             cl_pos_filter,gender_filter, count_filter, blade_filter, rudder_filter, adult_youth_filter,time_filter):
+#     return filter_data(
+#         df=df, disp_typ=disp_typ, year_filter=year_filter, class_filter=class_filter, pos_filter=pos_filter, 
+#         cl_pos_filter=cl_pos_filter, gender_filter=gender_filter, count_filter=count_filter, rudder_filter=rudder_filter,
+#         blade_filter=blade_filter, masters_filter=masters_filter, adult_youth_filter=adult_youth_filter,time_filter=time_filter
+#         ).to_dict('records')
+
+
+# @app.callback(
+#     Output('grid', 'rowData', allow_duplicate=True),
+#     Input('adult_youth_filter', 'value'),
+
+#     # State vars
+#     State('year_filter', 'value'),
+#     State('disp_typ', 'value'),
+#     State('class_filter', 'value'),
+#     State('pos_filter', 'value'),
+#     State('cl_pos_filter', 'value'),
+#     State('gender_filter', 'value'),
+#     State('count_filter', 'value'),
+#     State('blade_filter', 'value'),
+#     State('rudder_filter', 'value'),
+#     State('masters_filter', 'value'),
+#     State('time_filter', 'value'),
+#     prevent_initial_call=True
+# )
+# def adult_youth_filter_selected(adult_youth_filter, year_filter, disp_typ, class_filter, pos_filter,
+#                             cl_pos_filter,gender_filter, count_filter, blade_filter, rudder_filter, masters_filter, time_filter):
+#     return filter_data(
+#         df=df, disp_typ=disp_typ, year_filter=year_filter, class_filter=class_filter, pos_filter=pos_filter, 
+#         cl_pos_filter=cl_pos_filter, gender_filter=gender_filter, count_filter=count_filter, rudder_filter=rudder_filter,
+#         blade_filter=blade_filter, masters_filter=masters_filter, adult_youth_filter=adult_youth_filter,time_filter=time_filter
+#         ).to_dict('records')
+
+
+# @app.callback(
+#     Output('grid', 'rowData', allow_duplicate=True),
+#     Input('time_filter', 'value'),
+
+#     # State vars
+#     State('year_filter', 'value'),
+#     State('disp_typ', 'value'),
+#     State('class_filter', 'value'),
+#     State('pos_filter', 'value'),
+#     State('cl_pos_filter', 'value'),
+#     State('gender_filter', 'value'),
+#     State('count_filter', 'value'),
+#     State('blade_filter', 'value'),
+#     State('rudder_filter', 'value'),
+#     State('masters_filter', 'value'),
+#     State('adult_youth_filter', 'value'),
+#     prevent_initial_call=True
+# )
+# def time_filter_selected(time_filter, year_filter, disp_typ, class_filter, pos_filter,
+#                             cl_pos_filter,gender_filter, count_filter, blade_filter, rudder_filter, masters_filter, adult_youth_filter):
+  
+#     return filter_data(
+#         df=df, disp_typ=disp_typ, year_filter=year_filter, class_filter=class_filter, pos_filter=pos_filter, 
+#         cl_pos_filter=cl_pos_filter, gender_filter=gender_filter, count_filter=count_filter, rudder_filter=rudder_filter,
+#         blade_filter=blade_filter, masters_filter=masters_filter, adult_youth_filter=adult_youth_filter,time_filter=time_filter
+#         ).to_dict('records')
+
+
+# @app.callback(
+#     Output('split_graph', 'figure'),
+#     Input(ThemeChangerAIO.ids.radio('theme'), 'value'),
+#     Input('switch', 'value'),
+#     State('split_graph', 'figure'),
+# )
+# def update_split_graph(theme, switch_on, fig):
+#     template_name = theme.split('/')[-2]
+#     template = pio.templates[template_name] if switch_on else pio.templates[f'{template_name}_dark']
+#     fig = go.Figure(fig)
+#     # fig.update_layout(template=template_from_url(theme))
+#     fig.update_layout(template=template)
+#     return fig
+
+# @app.callback(
+#     Output('split_graph', 'figure', allow_duplicate=True),
+#     Input('grid','rowData'),
+#     State('switch', 'value'),
+#     State(ThemeChangerAIO.ids.radio('theme'), 'value'),
+#     prevent_initial_call=True
+# )
+# def update_graphed_data(data, switch_on, theme):
+#     # Create the figure form the new grid data
+#     df = pd.DataFrame.from_dict(data=data)
+#     fig = make_split_plot(df=df)
+    
+#     # Color the figure
+#     template_name = theme.split('/')[-2]
+#     template = pio.templates[template_name] if switch_on else pio.templates[f'{template_name}_dark']
+#     fig.update_layout(template=template)
+
+#     return fig
 # endregion -----------------------------------------------------------------------------------------------------------
 
 

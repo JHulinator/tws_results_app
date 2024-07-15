@@ -358,6 +358,9 @@ def get_raw_data(year: int) -> pd.DataFrame:
     
     # Add year column
     df['year'] = year
+
+    # Change Cuero 72 to Cheapside
+    df['Split Name'].loc[df['Split Name'] == 'Cuero 72'] = 'Cheapside'
               
     # Add a column with the string formatted split_time
     df['str_split_time'] = df['Split Time'].apply(lambda x: f'{divmod(x.seconds, 3600)[0] + 24*x.days}:{divmod(divmod(x.seconds, 3600)[1], 60)[0]}:{divmod(divmod(x.seconds, 3600)[1], 60)[1]}')
@@ -373,7 +376,7 @@ def get_raw_data(year: int) -> pd.DataFrame:
 
     # Add a column with the total hours
     df['Hours'] = df.apply(lambda x: x['Split Time'] + df['Split Time'].loc[(df['Boat #'] == x['Boat #']) & (df['Milage'] < x['Milage'])].sum(), axis=1)
-
+    #df['Hours'] = pd.to_numeric(df['Hours'], errors='coerce')
 
     # Add a column with the string formatted total_time
     df['str_hours'] = df['Hours'].apply(lambda x: f'{divmod(x.seconds, 3600)[0] + 24*x.days}:{divmod(divmod(x.seconds, 3600)[1], 60)[0]}:{divmod(divmod(x.seconds, 3600)[1], 60)[1]}')
@@ -384,6 +387,9 @@ def get_raw_data(year: int) -> pd.DataFrame:
     
     # Add a column with the split speed
     df['Split Speed'] = df.apply(lambda x: x['Split Milage'] / (x['Split Time'].seconds / 3600), axis=1)
+
+    # Add a column for the finish time
+    df['Finish time'] = df.apply(lambda z: df['Hours'].loc[df['Boat #'] == z['Boat #']].max(), axis=1)
     
     # print('Exit: get_raw_data ---------------\n')
     return df
@@ -394,7 +400,6 @@ def get_all_raw_data() -> pd.DataFrame:
     df = pd.DataFrame()
     for yr in years:
         yr_df = get_raw_data(yr)
-        yr_df['year'] = yr
         df = pd.concat([df, yr_df], ignore_index=True, sort=False)
     print('Exit get all raw data -------------------')
     return df
@@ -419,29 +424,30 @@ def filter_data(df:pd.DataFrame, disp_typ:str='Time of day', year_filter:List[in
                 (~(rudder_filter & df['Rudder'])) &
                 (~(blade_filter & df['Double Blade'])) & 
                 (~(masters_filter & (masters_filter ^ df['Masters']))) & 
-                (~(adult_youth_filter & (adult_youth_filter ^ df['Adult Youth']))) &
-                ((df['Hrs'] >= time_filter[0]) & (df['Hrs'] <= time_filter[1]))
+                (~(adult_youth_filter & (adult_youth_filter ^ df['Adult Youth']))) #&
+                #((df['Finish time'] >= time_filter[0]) & (df['Finish time'] <= time_filter[1]))
                 ]
     cps = list(TWS_CHECKPOINTS.axes[0].values[1:])
     # ['Time of day', 'Total time', 'Split time', 'Speed']
+    
     if disp_typ == 'Time of day':
-        key = '_TOD'
+        key = 'time_of_day'
     elif disp_typ == 'Total time':
-        key = '_TT'
+        key = 'str_hours'
     elif disp_typ == 'Split time':
-        key = '_ST'
+        key = 'str_split_time'
     elif disp_typ == 'Speed':
-        key = '_SS'
+        key = 'Split Speed'
     else:
-        key = ''
+        key = 'str_split_time'
 
-    data_cols = [x + key for x in cps]
+    # data_cols = [x + key for x in cps]
     
 
-    cols = ['year', 'Overall Place', 'Class Place', 'Class', 'Team Members'] + data_cols
+    cols = ['year', 'Overall Place', 'Class Place', 'Class', 'Team Members'] + [key]
     filtered = filtered.loc[:, cols]
     
-    filtered.rename(columns=dict(zip(data_cols, cps)), inplace=True)
+    # filtered.rename(columns=dict(zip(data_cols, cps)), inplace=True)
     filtered.reset_index(inplace=True, drop=True)
     
     # Drop all empty columns
@@ -582,7 +588,7 @@ class_position_filter = dbc.DropdownMenu(
         )
     ]
 )
-min_hr = df['Hrs'].min()
+min_hr = 29 + 46/60
 finis_time_filter = html.Div(
     [
         dbc.Label('Finish Time [Hr]'),

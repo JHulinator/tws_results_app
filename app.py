@@ -342,57 +342,48 @@ def get_raw_data(year: int) -> pd.DataFrame:
     df['Team Members'] = df['Team Members'].str.replace('\n\n', '\n')
     df['Team Members'] = df['Team Members'].str.replace('\n', '; ')
 
+    # Add column for class place
+    df['Class Place'] = df['Recognition'].str.split(' ').apply(lambda a: a[0])
+    df['Class Place'] = df['Class Place'].str.replace(r'\D', '', regex=True)
+
 
     # Rearrange the wide split data into long split data
     df = pd.melt(df,
     id_vars=['Overall Place', 'Recognition', 'Team Members', 'Boat #', 'Class', 'Gender', 'Max Boat Len',
        'Min Boat Width', 'Rudder', 'Double Blade', 'Masters', 'Adult Youth',
-       'Competitors', 'Team Captions', 'Competitor count'],
+       'Competitors', 'Team Captions', 'Competitor count', 'Class Place'],
        var_name='Split Name',
        value_name='Split Time'
        )
+    
+    # Add year column
+    df['year'] = year
+              
+    # Add a column with the string formatted split_time
+    df['str_split_time'] = df['Split Time'].apply(lambda x: f'{divmod(x.seconds, 3600)[0] + 24*x.days}:{divmod(divmod(x.seconds, 3600)[1], 60)[0]}:{divmod(divmod(x.seconds, 3600)[1], 60)[1]}')
 
     # Add a column with the milage at each split
-    df['Mile'] = df['Split Name'].apply(lambda a: TWS_CHECKPOINTS.loc[a, 'Milage'])
+    df['Milage'] = df['Split Name'].apply(lambda a: TWS_CHECKPOINTS.loc[a, 'Milage'])
+
+    # Add a column with the split milage
+    this_year_cp_list = TWS_CHECKPOINTS.loc[df['Split Name'].unique()]
+    this_year_cp_list['Split Milage'] = this_year_cp_list['Milage'].diff().fillna(this_year_cp_list['Milage'])
+    df['Split Milage'] = df['Split Name'].apply(lambda a: this_year_cp_list.loc[a, 'Split Milage'])
+    
+
+    # Add a column with the total hours
+    df['Hours'] = df.apply(lambda x: x['Split Time'] + df['Split Time'].loc[(df['Boat #'] == x['Boat #']) & (df['Milage'] < x['Milage'])].sum(), axis=1)
 
 
-    # Create columns with formatted split times: time_of_day, total_time, split_time
-    cp_cols = list(TWS_CHECKPOINTS.axes[0].values[1:])
+    # Add a column with the string formatted total_time
+    df['str_hours'] = df['Hours'].apply(lambda x: f'{divmod(x.seconds, 3600)[0] + 24*x.days}:{divmod(divmod(x.seconds, 3600)[1], 60)[0]}:{divmod(divmod(x.seconds, 3600)[1], 60)[1]}')
+
+    # Add a column with the string formatted time_of_day
     day_dict = {1:'Sat', 2:'Sun', 3:'Mon', 4:'Tue', 5:'Wed'}
+    df['time_of_day'] = df['Split Time'].apply(lambda x: f'{day_dict.setdefault(1+x.days+1*(divmod(x.seconds, 3600)[0]>15))} {9+divmod(x.seconds, 3600)[0]}:{divmod(divmod(x.seconds, 3600)[1], 60)[0]}')
     
-    last_cp = None
-    last_mil_i = 0
-    for i, name in enumerate(cp_cols):
-        if name in df.columns:
-            df[f'{name}_TOD'] = df[name].apply(lambda x: f'{day_dict.setdefault(1+x.days+1*(divmod(x.seconds, 3600)[0]>15))} {9+divmod(x.seconds, 3600)[0]}:{divmod(divmod(x.seconds, 3600)[1], 60)[0]}')
-            df[f'{name}_TT'] = df[name].apply(lambda x: f'{divmod(x.seconds, 3600)[0] + 24*x.days}:{divmod(divmod(x.seconds, 3600)[1], 60)[0]}:{divmod(divmod(x.seconds, 3600)[1], 60)[1]}') #.astype(str)
-            if i == 0:
-                df[f'{name}_ST'] = df[f'{name}_TT']
-                last_cp = name
-            else:
-                df[f'{name}_ST'] = (df[name] - df[last_cp]).apply(lambda x: f'{divmod(x.seconds, 3600)[0] + 24*x.days}:{divmod(divmod(x.seconds, 3600)[1], 60)[0]}:{divmod(divmod(x.seconds, 3600)[1], 60)[1]}')
-                last_cp = name
-            
-            h = str_to_hours(df[f'{name}_ST'])
-            m = TWS_CHECKPOINTS.loc[name, 'Milage'] - TWS_CHECKPOINTS['Milage'].iloc[last_mil_i]
-            if h.sum() != 0:
-                df[f'{name}_SS'] = m / h
-                last_mil_i = i
-            else:
-                df[f'{name}_SS'] = 0.0
-                
-            
-            
-            # df[f'{name}_SS'].loc[df[f'{name}_SS'] == np.inf] = 0.0
-    
-
-    # Add column for class place
-    df['Class Place'] = df['Recognition'].str.split(' ').apply(lambda a: a[0])
-    df['Class Place'] = df['Class Place'].str.replace(r'\D', '', regex=True)
-
-    # Add column for finish time
-    df['Hrs'] = df['Seadrift'].apply(lambda x: x.total_seconds()/3600)
-
+    # Add a column with the split speed
+    df['Split Speed'] = df.apply(lambda x: x['Split Milage'] / (x['Split Time'].seconds / 3600), axis=1)
     
     # print('Exit: get_raw_data ---------------\n')
     return df

@@ -752,21 +752,10 @@ controls = dbc.Collapse([
 data = filter_data()
 grid = dag.AgGrid(
     id="grid",
-    columnDefs=[{'field': f,
-                 'filter':(i==4),
-                 'wrapText':(i==4),
-                 'sortable':(i!=4),
-                 'autoHeight': True,
-                 'minWidth': 80 + (i==4)*360 - 40*((i==0)|(i==1)|(i==2)|(i==3)),
-                 'checkboxSelection':(i==4),
-                 'headerCheckboxSelection':(i==4)
-                 } for i, f in enumerate(data.columns)],
-    rowData= data.to_dict("records"),
     defaultColDef={"flex": 1, "minWidth": 40, "sortable": True, "resizable": True,},
     dashGridOptions={'rowSelection':'multiple'},
     style={'--ag-grid-size': 3,
            '--ag-row-height':3},
-    columnSizeOptions={'skipHeader':True, 'keys':list(data.columns[3:].values)},
     columnSize = 'sizeToFit'
 )
 expand_table_button = dbc.Button([
@@ -791,9 +780,6 @@ collapse = dbc.Collapse(
     is_open=False
 )
 
-# Create the figures for each graph
-# fig_splits = go.Figure()
-# fig_splits.update_layout(template= 'minty')
 
 # region Tabs
 animation_tab = dbc.Tab([], 
@@ -847,7 +833,8 @@ def main():
         dbc.Row([tabs], style={'padding':3, 'flex':'auto'},align='stretch'),
 
         # dcc.Store stores the data value
-        dcc.Store(id='data', data=data.to_json(orient='split'))
+        dcc.Store(id='data', data=data.to_json(orient='split')),
+        dcc.Store(id='selected_teams',)
     ],
     fluid=True,
     class_name="dbc dbc-ag-grid",
@@ -956,9 +943,10 @@ def filter_update(year_filter, multi_value, class_filter, class_filter_an, pos_f
     Input('switch', 'value'),
     Input('data', 'data'),
     Input('disp_typ', 'value'),
+    Input('selected_teams', 'data'),
     State('split_graph', 'figure'),
 )
-def update_split_graph(theme, switch_on, data, disp_typ, fig):
+def update_split_graph(theme, switch_on, data, disp_typ, selected_teams, fig):
     # Find the ID of the input that triggered the callback
     trigger_id = ctx.triggered_id
 
@@ -967,7 +955,7 @@ def update_split_graph(theme, switch_on, data, disp_typ, fig):
     template = pio.templates[template_name] if switch_on else pio.templates[f'{template_name}_dark']
 
     # If triggered by data change
-    if trigger_id =='data' or trigger_id == 'disp_typ':
+    if trigger_id =='data' or trigger_id == 'disp_typ' or trigger_id == 'selected_teams':
         # Add data to chart       
         fig = px.violin(pd.read_json(data,orient='split'), y=DISP_TYP_DICT[disp_typ], x='Split Name', 
         color='year', 
@@ -982,6 +970,24 @@ def update_split_graph(theme, switch_on, data, disp_typ, fig):
         disp_typ + ' for %{x}: %{y}'+
         '<extra>%{customdata[5]}</extra>',
         )
+
+        # Add scater plots if teams are selected
+        if selected_teams != '{"columns":[],"index":[],"data":[]}':
+            teams = pd.read_json(selected_teams,orient='split')[['year', 'Overall Place']]
+            splits = pd.read_json(data,orient='split')
+            splits = splits.loc[(splits['year'].isin(teams['year'])) & (splits['Overall Place'].isin(teams['Overall Place']))]
+            print(splits)
+            # print(splits['year'].apply(lambda x: x in teams['year']))
+            # print(splits['Overall Place'].apply(lambda x: x in teams['Overall Place']))
+
+            # scaters = []
+            # for team in teams.iterrows():
+            #     scaters.append(
+            #         go.Scatter(
+            #             x=
+            #         )
+            #     )
+    
     else:
         # Else use the existing data
         fig = go.Figure(fig)
@@ -995,9 +1001,8 @@ def update_split_graph(theme, switch_on, data, disp_typ, fig):
     Output('grid', 'rowData'),
     Input('data', 'data'),
     Input('disp_typ', 'value'),
-    State('grid', 'columnDefs')
 )
-def update_table(data, disp_typ, col_defs):
+def update_table(data, disp_typ,):
     # Read data into DataFrame
     df = pd.read_json(data,orient='split')
 
@@ -1018,22 +1023,19 @@ def update_table(data, disp_typ, col_defs):
                  'autoHeight': True,
                  'minWidth': 80 + (i==4)*360 - 40*((i==0)|(i==1)|(i==2)|(i==3)),
                  'checkboxSelection':(i==4),
-                 'headerCheckboxSelection':(i==4)
+                 'headerCheckboxSelection':(i==4),
+                 'headerCheckboxSelectionFilteredOnly':True
                  } for i, f in enumerate(df.columns)]
     return columnDefs, df.to_dict('records')
 
-'''
-    columnDefs=[{'field': f,
-                 'filter':(i==4),
-                 'wrapText':(i==4),
-                 'sortable':(i!=4),
-                 'autoHeight': True,
-                 'minWidth': 80 + (i==4)*360 - 40*((i==0)|(i==1)|(i==2)|(i==3)),
-                 'checkboxSelection':(i==4),
-                 'headerCheckboxSelection':(i==4)
-                 } for i, f in enumerate(data.columns)],
-    rowData= data.to_dict("records"),
-'''
+
+@app.callback(
+    Output('selected_teams', 'data'),
+    Input('grid', 'selectedRows')
+)
+def team_selected(rows):
+    df = pd.DataFrame(rows)
+    return df.to_json(orient='split')
 # endregion -----------------------------------------------------------------------------------------------------------
 
 
@@ -1043,7 +1045,6 @@ if __name__ == '__main__':
 
 '''
 TODO
-    * add data table callback
     * Add selectibility for teams in table hilight in split plot
     * add groupby dropdown
     * Add stacked or unstacked control to plot

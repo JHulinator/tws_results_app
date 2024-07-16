@@ -45,6 +45,12 @@ PLOT_COLORS = {
     10:'--bs-pink',
     }
 
+DISP_TYP_DICT = {
+    'Time of day':'time_of_day',
+    'Total time':'str_hours',
+    'Split time':'str_split_time',
+    'Speed':'Split Speed',
+}
 # PLOT_COLORS = {
 #     0:'primary',
 #     1:'secondary',
@@ -505,6 +511,7 @@ def update_count(id:str, count_filter, count_filter_an) -> List:
         elif count_filter_an == 0:
             count_filter = []
     return count_filter, count_filter_an
+
 # endregion -----------------------------------------------------------------------------------------------------------
 
 
@@ -754,7 +761,7 @@ grid = dag.AgGrid(
                  'checkboxSelection':(i==4),
                  'headerCheckboxSelection':(i==4)
                  } for i, f in enumerate(data.columns)],
-    rowData= data.to_dict("records"), # df.loc[:,'Overall Place':'Boat #'].to_dict("records"),
+    rowData= data.to_dict("records"),
     defaultColDef={"flex": 1, "minWidth": 40, "sortable": True, "resizable": True,},
     dashGridOptions={'rowSelection':'multiple'},
     style={'--ag-grid-size': 3,
@@ -961,21 +968,8 @@ def update_split_graph(theme, switch_on, data, disp_typ, fig):
 
     # If triggered by data change
     if trigger_id =='data' or trigger_id == 'disp_typ':
-        # fig = go.Figure()
-        # Add data to chart
-        if disp_typ == 'Time of day':
-            key = 'time_of_day'
-        elif disp_typ == 'Total time':
-            key = 'str_hours'
-        elif disp_typ == 'Split time':
-            key = 'str_split_time'
-        elif disp_typ == 'Speed':
-            key = 'Split Speed'
-        else:
-            key = 'str_split_time'
-
-        # fig.add_traces(px.violin(pd.read_json(data,orient='split'), y=key, x='Split Name', color='year', box=True, points='all').data)
-        fig = px.violin(pd.read_json(data,orient='split'), y=key, x='Split Name', 
+        # Add data to chart       
+        fig = px.violin(pd.read_json(data,orient='split'), y=DISP_TYP_DICT[disp_typ], x='Split Name', 
         color='year', 
         points='all', 
         custom_data=['Boat #', 'Team Members', 'Overall Place', 'Class Place', 'Class', 'year']
@@ -995,6 +989,51 @@ def update_split_graph(theme, switch_on, data, disp_typ, fig):
     fig.update_layout(template=template,) # autosize=True
     return fig
 
+
+@app.callback(
+    Output('grid', 'columnDefs'),
+    Output('grid', 'rowData'),
+    Input('data', 'data'),
+    Input('disp_typ', 'value'),
+    State('grid', 'columnDefs')
+)
+def update_table(data, disp_typ, col_defs):
+    # Read data into DataFrame
+    df = pd.read_json(data,orient='split')
+
+    # Pivot DataFrame to make a row for each team
+    df = df.pivot(columns='Split Name', values=DISP_TYP_DICT[disp_typ], index=['year', 'Overall Place', 'Class Place', 'Class', 'Team Members'])
+    
+    # Sort the columns
+    df = df.reindex([cp for cp in TWS_CHECKPOINTS.index if cp in df.columns], axis=1)
+
+    # Make the index cols into data cols
+    df.reset_index(inplace=True)
+
+    # Create dict of column definitions 
+    columnDefs = [{'field': f,
+                 'filter':(i==4),
+                 'wrapText':(i==4),
+                 'sortable':(i!=4),
+                 'autoHeight': True,
+                 'minWidth': 80 + (i==4)*360 - 40*((i==0)|(i==1)|(i==2)|(i==3)),
+                 'checkboxSelection':(i==4),
+                 'headerCheckboxSelection':(i==4)
+                 } for i, f in enumerate(df.columns)]
+    return columnDefs, df.to_dict('records')
+
+'''
+    columnDefs=[{'field': f,
+                 'filter':(i==4),
+                 'wrapText':(i==4),
+                 'sortable':(i!=4),
+                 'autoHeight': True,
+                 'minWidth': 80 + (i==4)*360 - 40*((i==0)|(i==1)|(i==2)|(i==3)),
+                 'checkboxSelection':(i==4),
+                 'headerCheckboxSelection':(i==4)
+                 } for i, f in enumerate(data.columns)],
+    rowData= data.to_dict("records"),
+'''
 # endregion -----------------------------------------------------------------------------------------------------------
 
 

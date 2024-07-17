@@ -24,4 +24,6 @@
 'str_hours', 
 'time_of_day', 
 'Split Speed', 
-'Finish time']
+'Finish time',
+'Team Name'
+]

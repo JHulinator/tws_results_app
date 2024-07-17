@@ -290,6 +290,22 @@ def is_adult_youth(str_recognition:str) -> bool:
     str_class = re.sub(r'^\d', '', str_class)
     return ('adult' in str_class)
 
+
+def name_formatter(names:str) -> str:
+    '''
+    This function takes the values in the Team Members column and outputs a formatted string containing first initials and las names
+    '''
+    names = names.split(';') # Make a list of all team members names
+    name_str=''
+    for name in names:
+        if 'TC' not in name and len(name) > 2:
+            name = re.sub(r'^\s', '', name) # Remove any leading spaces
+            last = name.split(' ')[1] # Get the last name
+            name_str += f'{name[0]} {last} | '
+    name_str = name_str[:-3] # Remove the last separator
+    return name_str
+
+
 def get_raw_data(year: int) -> pd.DataFrame:
     # print('Enter: get_raw_data ---------------\n')
     # This method reads the CSV split spreadsheet data as downloaded from https://www.texaswatersafari.org/
@@ -397,7 +413,10 @@ def get_raw_data(year: int) -> pd.DataFrame:
 
     # Add a column for the finish time
     df['Finish time'] = df.apply(lambda z: df['Hours'].loc[df['Boat #'] == z['Boat #']].max().seconds / 3600 + df['Hours'].loc[df['Boat #'] == z['Boat #']].max().days * 24, axis=1)
-    
+
+    # Get a string formatted team name
+    df['Team Name'] = df['Team Members'].apply(name_formatter)
+
     # print('Exit: get_raw_data ---------------\n')
     return df
 
@@ -698,15 +717,38 @@ recognition_filter = html.Div(
 
 dropdown2 = html.Div(
     [
-        dbc.Label('Data Display Options'),
-        dcc.Dropdown(
-            options=['Time of day', 'Total time', 'Split time', 'Speed'],
-            value='Split time',
-            id='disp_typ',
-            clearable=False,
-        )
+        dbc.Label('Data Display Options', className='lg'),
+        dbc.Stack(
+            [
+                html.H6('Ordinate Axis:'),
+                dcc.Dropdown(
+                    options=['Time of day', 'Total time', 'Split time', 'Speed'],
+                    value='Split time',
+                    id='disp_typ',
+                    clearable=False,
+                    style= {'min-width':100}
+                )
+            ],
+            direction='horizontal',
+            gap=2
+        ),
+        dbc.Stack(
+            [
+                html.H6('Group By:'),
+                dcc.Dropdown(
+                    options=['None', 'Year', 'Class'],
+                    value='Year',
+                    id='group_by',
+                    clearable=False,
+                    style= {'min-width':100}
+                )
+            ],
+            direction='horizontal',
+            gap=2
+        ),
     ],
     className='mb-4',
+    style= {'width':'auto'}
 )
 
 expand_filter_button = dbc.Button([
@@ -961,7 +1003,7 @@ def update_split_graph(theme, switch_on, data, disp_typ, selected_teams, fig):
         fig = px.violin(pd.read_json(data,orient='split'), y=DISP_TYP_DICT[disp_typ], x='Split Name', 
         color='year', 
         points='all', 
-        custom_data=['Boat #', 'Team Members', 'Overall Place', 'Class Place', 'Class', 'year']
+        custom_data=['Boat #', 'Team Name', 'Overall Place', 'Class Place', 'Class', 'year']
         )
 
         fig.update_traces(meanline_visible=True, 
@@ -970,27 +1012,23 @@ def update_split_graph(theme, switch_on, data, disp_typ, selected_teams, fig):
         '%{customdata[2]}-Overall, %{customdata[3]}-%{customdata[4]}<br>'+
         disp_typ + ' for %{x}: %{y}'+
         '<extra>%{customdata[5]}</extra>',
+        pointpos=0
         )
+
 
         # Add scater plots if teams are selected
         if selected_teams != '{"columns":[],"index":[],"data":[]}':
             teams = pd.read_json(selected_teams,orient='split')[['year', 'Overall Place']]
             splits = pd.read_json(data,orient='split')
-            # splits = splits.loc[(splits['year'].isin(teams['year'])) & (splits['Overall Place'].isin(teams['Overall Place']))]
-            # print(splits)
 
-            # scaters = []
             for team in teams.iterrows():
                 team = team[1]
-                name = splits.loc[(splits['year'] == team['year']) & (splits['Overall Place'] == team['Overall Place']), 'Competitors'].iloc[0].replace("'", '').replace('[','').replace(']', '')
-            
-        
-                print(name)
                 fig.add_trace(
                     go.Scatter(
                         x=splits.loc[(splits['year'] == team['year']) & (splits['Overall Place'] == team['Overall Place']), 'Split Name'],
                         y=splits.loc[(splits['year'] == team['year']) & (splits['Overall Place'] == team['Overall Place']), DISP_TYP_DICT[disp_typ]],
-                        mode='lines'
+                        mode='lines',
+                        name=splits.loc[(splits['year'] == team['year']) & (splits['Overall Place'] == team['Overall Place']), 'Team Name'].iloc[0]
                     )
                 )
     

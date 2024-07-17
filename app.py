@@ -21,6 +21,7 @@ import re
 from difflib import SequenceMatcher
 from os.path import exists
 from typing import List
+import ast
 # endregion imports ---------------------------------------------------------------------------------------------------
 
 
@@ -975,18 +976,23 @@ def update_split_graph(theme, switch_on, data, disp_typ, selected_teams, fig):
         if selected_teams != '{"columns":[],"index":[],"data":[]}':
             teams = pd.read_json(selected_teams,orient='split')[['year', 'Overall Place']]
             splits = pd.read_json(data,orient='split')
-            splits = splits.loc[(splits['year'].isin(teams['year'])) & (splits['Overall Place'].isin(teams['Overall Place']))]
-            print(splits)
-            # print(splits['year'].apply(lambda x: x in teams['year']))
-            # print(splits['Overall Place'].apply(lambda x: x in teams['Overall Place']))
+            # splits = splits.loc[(splits['year'].isin(teams['year'])) & (splits['Overall Place'].isin(teams['Overall Place']))]
+            # print(splits)
 
             # scaters = []
-            # for team in teams.iterrows():
-            #     scaters.append(
-            #         go.Scatter(
-            #             x=
-            #         )
-            #     )
+            for team in teams.iterrows():
+                team = team[1]
+                name = splits.loc[(splits['year'] == team['year']) & (splits['Overall Place'] == team['Overall Place']), 'Competitors'].iloc[0].replace("'", '').replace('[','').replace(']', '')
+            
+        
+                print(name)
+                fig.add_trace(
+                    go.Scatter(
+                        x=splits.loc[(splits['year'] == team['year']) & (splits['Overall Place'] == team['Overall Place']), 'Split Name'],
+                        y=splits.loc[(splits['year'] == team['year']) & (splits['Overall Place'] == team['Overall Place']), DISP_TYP_DICT[disp_typ]],
+                        mode='lines'
+                    )
+                )
     
     else:
         # Else use the existing data

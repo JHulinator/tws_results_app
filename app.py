@@ -718,37 +718,33 @@ recognition_filter = html.Div(
 dropdown2 = html.Div(
     [
         dbc.Label('Data Display Options', className='lg'),
-        dbc.Stack(
-            [
-                html.H6('Ordinate Axis:'),
-                dcc.Dropdown(
-                    options=['Time of day', 'Total time', 'Split time', 'Speed'],
-                    value='Split time',
-                    id='disp_typ',
-                    clearable=False,
-                    style= {'min-width':100}
-                )
-            ],
-            direction='horizontal',
-            gap=2
-        ),
-        dbc.Stack(
-            [
-                html.H6('Group By:'),
-                dcc.Dropdown(
-                    options=['None', 'Year', 'Class'],
-                    value='Year',
-                    id='group_by',
-                    clearable=False,
-                    style= {'min-width':100}
-                )
-            ],
-            direction='horizontal',
-            gap=2
+        dcc.Dropdown(
+            options=['Time of day', 'Total time', 'Split time', 'Speed'],
+            value='Split time',
+            id='disp_typ',
+            clearable=False,
+            style= {'min-width':100}
         ),
     ],
     className='mb-4',
     style= {'width':'auto'}
+)
+
+graph_controls = dbc.Stack(
+    [
+        html.H6('Group By:'),
+        dcc.Dropdown(
+            options=['None', 'Year', 'Class'],
+            value='Year',
+            id='group_by',
+            clearable=False,
+            style= {'min-width':100}
+        ),
+        dbc.Switch(label='Overlay', id='is_overlay', value=True),
+    ],
+    direction='horizontal',
+    gap=2,
+    style={'padding':10}
 )
 
 expand_filter_button = dbc.Button([
@@ -830,12 +826,16 @@ animation_tab = dbc.Tab([],
                class_name='h-4'
                )
 split_tab = dbc.Tab([
+    graph_controls,
     dcc.Graph(figure=go.Figure(),
-              id='split_graph'
+              id='split_graph',
+              config = {'autosizable':True, 'scrollZoom':True},
+              style={'height':'auto'}
               )
-], 
+],
                label='Split Times', 
-               class_name='h-4'
+               class_name='h-4',
+               style={'height':'auto'}
                )
 tab3 = dbc.Tab([], 
                label='River Flow Data', 
@@ -846,7 +846,7 @@ tab4 = dbc.Tab([],
                class_name='h-4'
                )
 
-tabs = dbc.Tabs([split_tab, tab3, tab4, animation_tab]) # dbc.Card(dbc.Tabs([split_tab, tab3, tab4, animation_tab]))
+tabs = dbc.Tabs([split_tab, tab3, tab4, animation_tab], style={'height':'auto'}) # dbc.Card(dbc.Tabs([split_tab, tab3, tab4, animation_tab]))
 # endregion
 # endregion -----------------------------------------------------------------------------------------------------------
 
@@ -987,9 +987,21 @@ def filter_update(year_filter, multi_value, class_filter, class_filter_an, pos_f
     Input('data', 'data'),
     Input('disp_typ', 'value'),
     Input('selected_teams', 'data'),
+    Input('group_by', 'value'),
+    Input('is_overlay', 'value'),
     State('split_graph', 'figure'),
 )
-def update_split_graph(theme, switch_on, data, disp_typ, selected_teams, fig):
+def update_split_graph(theme, switch_on, data, disp_typ, selected_teams, group_by, is_overlay, fig):
+  
+    gpdict = {
+        'Year':'year',
+        'None':None,
+        'Class':'Class'
+    }
+    if is_overlay:
+        violinmode = 'overlay'
+    else:
+        violinmode = 'group'
     # Find the ID of the input that triggered the callback
     trigger_id = ctx.triggered_id
 
@@ -998,21 +1010,26 @@ def update_split_graph(theme, switch_on, data, disp_typ, selected_teams, fig):
     template = pio.templates[template_name] if switch_on else pio.templates[f'{template_name}_dark']
 
     # If triggered by data change
-    if trigger_id =='data' or trigger_id == 'disp_typ' or trigger_id == 'selected_teams':
+    if trigger_id =='data' or trigger_id == 'disp_typ' or trigger_id == 'selected_teams' or trigger_id == 'group_by':
         # Add data to chart       
         fig = px.violin(pd.read_json(data,orient='split'), y=DISP_TYP_DICT[disp_typ], x='Split Name', 
-        color='year', 
+        color=gpdict[group_by], 
         points='all', 
-        custom_data=['Boat #', 'Team Name', 'Overall Place', 'Class Place', 'Class', 'year']
+        custom_data=['Boat #', 'Team Name', 'Overall Place', 'Class Place', 'Class', 'year'],
         )
 
-        fig.update_traces(meanline_visible=True, 
-        hovertemplate='<b>Boat# %{customdata[0]}</b><br>' +
-        '<b>%{customdata[1]}</b><br><br>'+
-        '%{customdata[2]}-Overall, %{customdata[3]}-%{customdata[4]}<br>'+
-        disp_typ + ' for %{x}: %{y}'+
-        '<extra>%{customdata[5]}</extra>',
-        pointpos=0
+
+        fig.update_traces(
+            meanline_visible=True, 
+            hovertemplate='<b>Boat# %{customdata[0]}</b><br>' +
+            '<b>%{customdata[1]}</b><br><br>'+
+            '%{customdata[2]}-Overall, %{customdata[3]}-%{customdata[4]}<br>'+
+            disp_typ + ' for %{x}: %{y}'+
+            '<extra>%{customdata[5]}</extra>',
+            pointpos=0,
+            hoveron = 'points+kde', #'violins+points+kde'
+            opacity=1,
+            fillcolor='rgba(158,202,225,0.0)'
         )
 
 
@@ -1036,7 +1053,7 @@ def update_split_graph(theme, switch_on, data, disp_typ, selected_teams, fig):
         # Else use the existing data
         fig = go.Figure(fig)
 
-    fig.update_layout(template=template,) # autosize=True
+    fig.update_layout(template=template, height=600, violinmode=violinmode) # autosize=True
     return fig
 
 
@@ -1089,7 +1106,5 @@ if __name__ == '__main__':
 
 '''
 TODO
-    * Add selectibility for teams in table hilight in split plot
-    * add groupby dropdown
-    * Add stacked or unstacked control to plot
+    * Sync team line color with group and change line type if group_by not none
 '''

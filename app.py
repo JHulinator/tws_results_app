@@ -838,7 +838,8 @@ collapse = dbc.Collapse(
 # region Tabs
 animation_tab = dbc.Tab([], 
                label='Animation', 
-               class_name='h-4'
+               class_name='h-4',
+               disabled = True
                )
 split_tab = dbc.Tab([
     graph_controls,
@@ -854,11 +855,13 @@ split_tab = dbc.Tab([
                )
 tab3 = dbc.Tab([], 
                label='River Flow Data', 
-               class_name='h-4'
+               class_name='h-4',
+               disabled = True
                )
 tab4 = dbc.Tab([], 
                label='Normalized Split Times', 
-               class_name='h-4'
+               class_name='h-4',
+               disabled = True
                )
 
 tabs = dbc.Tabs([split_tab, tab3, tab4, animation_tab], style={'height':'auto'}) # dbc.Card(dbc.Tabs([split_tab, tab3, tab4, animation_tab]))
@@ -1147,4 +1150,5 @@ if __name__ == '__main__':
 TODO
     * Sync team line color with group and change line type if group_by not none
     * Add mean line with labels
+    * Fix the colors to plot with the theme
 '''

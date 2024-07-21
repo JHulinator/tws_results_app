@@ -1032,6 +1032,7 @@ def update_split_graph(theme, switch_on, data, disp_typ, selected_teams, group_b
     if trigger_id =='data' or trigger_id == 'disp_typ' or trigger_id == 'selected_teams' or trigger_id == 'group_by':
         # Add data to chart    
         figure_data = pd.read_json(data,orient='split')
+        hovertemplate='<b>Boat# %{customdata[0]}</b><br><b>%{customdata[1]}</b><br><br>%{customdata[2]}-Overall, %{customdata[3]}-%{customdata[4]}<br>' + disp_typ + ' for %{x}: %{y}<extra>%{customdata[5]}</extra>'
         if disp_typ == 'Time of day':
             figure_data[DISP_TYP_DICT[disp_typ]] = pd.to_datetime(figure_data['datetime_2000_1_1'])
             tickformat = '%a %H:%M'
@@ -1043,6 +1044,7 @@ def update_split_graph(theme, switch_on, data, disp_typ, selected_teams, group_b
             tickformat = '%H:%M'
         elif disp_typ == 'Speed':
             tickformat ='%2f'
+            hovertemplate='<b>Boat# %{customdata[0]}</b><br><b>%{customdata[1]}</b><br><br>%{customdata[2]}-Overall, %{customdata[3]}-%{customdata[4]}<br>' + disp_typ + ' for %{x}: %{y:.2f}MPH<extra>%{customdata[5]}</extra>'
     
         fig = px.violin(figure_data, y=DISP_TYP_DICT[disp_typ], x='Split Name', 
         color=gpdict[group_by], 
@@ -1055,11 +1057,12 @@ def update_split_graph(theme, switch_on, data, disp_typ, selected_teams, group_b
         fig.update_yaxes(tickformat=tickformat)
         fig.update_traces(
             meanline_visible=True, 
-            hovertemplate='<b>Boat# %{customdata[0]}</b><br>' +
-            '<b>%{customdata[1]}</b><br><br>'+
-            '%{customdata[2]}-Overall, %{customdata[3]}-%{customdata[4]}<br>'+
-            disp_typ + ' for %{x}: %{y}'+
-            '<extra>%{customdata[5]}</extra>',
+            # hovertemplate='<b>Boat# %{customdata[0]}</b><br>' +
+            # '<b>%{customdata[1]}</b><br><br>'+
+            # '%{customdata[2]}-Overall, %{customdata[3]}-%{customdata[4]}<br>'+
+            # disp_typ + ' for %{x}: %{y}'+
+            # '<extra>%{customdata[5]}</extra>',
+            hovertemplate = hovertemplate,
             pointpos=0,
             hoveron = 'points+kde', #'violins+points+kde'
             opacity=1,

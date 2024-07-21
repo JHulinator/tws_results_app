@@ -45,6 +45,19 @@ PLOT_COLORS = {
     9:'--bs-purple',
     10:'--bs-pink',
     }
+theam_colors = [
+    '--bs-blue', # #2c3e50
+    '--bs-red', # #e74c3c
+    '--bs-green', ##18bc9c
+    '--bs-orange', ##fd7e14
+    '--bs-indigo', ##6610f2
+    '--bs-teal',
+    '--bs-gray',
+    '--bs-cyan',
+    '--bs-yellow',
+    '--bs-purple',
+    '--bs-pink',
+]
 
 DISP_TYP_DICT = {
     'Time of day':'time_of_day',
@@ -52,6 +65,7 @@ DISP_TYP_DICT = {
     'Split time':'str_split_time',
     'Speed':'Split Speed',
 }
+
 # PLOT_COLORS = {
 #     0:'primary',
 #     1:'secondary',
@@ -316,7 +330,7 @@ def get_raw_data(year: int) -> pd.DataFrame:
 
     # Rename some columns. This is needed because the headers titles in the CSV do not align with the values (Why TWS?!?!).
     # Start with the colum named 'Staples' and iterate through the data columns
-    for n in range(df.columns.get_loc('Staples'), 30, 2): 
+    for n in range(df.columns.get_loc('Staples'), len(df.columns)-1, 2): 
         df = df.rename(columns={df.columns[n]:'Unnamed', df.columns[n+1]:df.columns[n]})
 
     # The CSV file has a lot of empty cells (for excel hell formatting). We are now going to get rid of these
@@ -348,7 +362,7 @@ def get_raw_data(year: int) -> pd.DataFrame:
     
 
     #Split out competitors and team captions
-    df[['Competitors', 'Team Captions']] = pd.DataFrame(df['Team Members'].str.split(pat='TC ', n=1 , regex=True).to_list(), index=df.index)
+    df[['Competitors', 'Team Captions']] = pd.DataFrame(df['Team Members'].astype(str).str.split(pat='TC ', n=1 , regex=True).to_list(), index=df.index)
 
     # Convert str to list of str
     df['Competitors'] = df['Competitors'].str.replace('\n{2,}', '').str.split('\r\n', regex=True)
@@ -366,7 +380,7 @@ def get_raw_data(year: int) -> pd.DataFrame:
     df['Team Members'] = df['Team Members'].str.replace('\n', '; ')
 
     # Add column for class place
-    df['Class Place'] = df['Recognition'].str.split(' ').apply(lambda a: a[0])
+    df['Class Place'] = df['Recognition'].astype(str).str.split(' ').apply(lambda a: a[0])
     df['Class Place'] = df['Class Place'].str.replace(r'\D', '', regex=True)
 
 
@@ -383,7 +397,7 @@ def get_raw_data(year: int) -> pd.DataFrame:
     df['year'] = year
 
     # Change Cuero 72 to Cheapside
-    df['Split Name'].loc[df['Split Name'] == 'Cuero 72'] = 'Cheapside'
+    df['Split Name'].loc[df['Split Name'] == 'Cuero 766'] = 'Cheapside'
               
     # Add a column with the string formatted split_time
     df['str_split_time'] = df['Split Time'].apply(lambda x: f'{divmod(x.seconds, 3600)[0] + 24*x.days}:{divmod(divmod(x.seconds, 3600)[1], 60)[0]}:{divmod(divmod(x.seconds, 3600)[1], 60)[1]}')
@@ -399,15 +413,16 @@ def get_raw_data(year: int) -> pd.DataFrame:
 
     # Add a column with the total hours
     df['Hours'] = df.apply(lambda x: x['Split Time'] + df['Split Time'].loc[(df['Boat #'] == x['Boat #']) & (df['Milage'] < x['Milage'])].sum(), axis=1)
-    #df['Hours'] = pd.to_numeric(df['Hours'], errors='coerce')
 
     # Add a column with the string formatted total_time
     df['str_hours'] = df['Hours'].apply(lambda x: f'{divmod(x.seconds, 3600)[0] + 24*x.days}:{divmod(divmod(x.seconds, 3600)[1], 60)[0]}:{divmod(divmod(x.seconds, 3600)[1], 60)[1]}')
 
     # Add a column with the string formatted time_of_day
-    day_dict = {1:'Sat', 2:'Sun', 3:'Mon', 4:'Tue', 5:'Wed'}
-    df['time_of_day'] = df['Split Time'].apply(lambda x: f'{day_dict.setdefault(1+x.days+1*(divmod(x.seconds, 3600)[0]>15))} {9+divmod(x.seconds, 3600)[0]}:{divmod(divmod(x.seconds, 3600)[1], 60)[0]}')
+    df.dropna(axis=0, subset='Split Time', inplace=True)
+    df['datetime_2000_1_1'] = df['Hours'].apply(lambda x: pd.to_datetime('2000-1-1 09:00') + x) # df['Hours'].apply(lambda x: f'{day_dict[1+x.days+1*(divmod(x.seconds, 3600)[0]>15)]} {9+divmod(x.seconds, 3600)[0]-24*(divmod(x.seconds, 3600)[0]>15)}:{divmod(divmod(x.seconds, 3600)[1], 60)[0]}')
     
+    df['time_of_day'] = df['datetime_2000_1_1'].dt.strftime('%a %H:%M') #dt.apply(lambda x: f'{day_dict[x.day]} {x.time.hour}:{x.time.minute}')
+
     # Add a column with the split speed
     df['Split Speed'] = df.apply(lambda x: x['Split Milage'] / (x['Split Time'].seconds / 3600), axis=1)
 
@@ -998,6 +1013,10 @@ def update_split_graph(theme, switch_on, data, disp_typ, selected_teams, group_b
         'None':None,
         'Class':'Class'
     }
+    dispdict = {
+
+    }
+    
     if is_overlay:
         violinmode = 'overlay'
     else:
@@ -1011,14 +1030,29 @@ def update_split_graph(theme, switch_on, data, disp_typ, selected_teams, group_b
 
     # If triggered by data change
     if trigger_id =='data' or trigger_id == 'disp_typ' or trigger_id == 'selected_teams' or trigger_id == 'group_by':
-        # Add data to chart       
-        fig = px.violin(pd.read_json(data,orient='split'), y=DISP_TYP_DICT[disp_typ], x='Split Name', 
+        # Add data to chart    
+        figure_data = pd.read_json(data,orient='split')
+        if disp_typ == 'Time of day':
+            figure_data[DISP_TYP_DICT[disp_typ]] = pd.to_datetime(figure_data['datetime_2000_1_1'])
+            tickformat = '%a %H:%M'
+        elif disp_typ == 'Split time':
+            figure_data[DISP_TYP_DICT[disp_typ]] = pd.to_timedelta(figure_data[DISP_TYP_DICT[disp_typ]]) + pd.to_datetime('1970/01/01')
+            tickformat = '%H:%M'
+        elif disp_typ == 'Total time':
+            figure_data[DISP_TYP_DICT[disp_typ]] = figure_data['Hours']
+            tickformat = '%H:%M'
+        elif disp_typ == 'Speed':
+            tickformat ='%2f'
+    
+        fig = px.violin(figure_data, y=DISP_TYP_DICT[disp_typ], x='Split Name', 
         color=gpdict[group_by], 
         points='all', 
         custom_data=['Boat #', 'Team Name', 'Overall Place', 'Class Place', 'Class', 'year'],
+        category_orders= {'Split Name':[split for split in TWS_CHECKPOINTS.index if split in figure_data['Split Name'].unique()]},
+        #color_discrete_sequence = theam_colors
         )
 
-
+        fig.update_yaxes(tickformat=tickformat)
         fig.update_traces(
             meanline_visible=True, 
             hovertemplate='<b>Boat# %{customdata[0]}</b><br>' +
@@ -1029,7 +1063,7 @@ def update_split_graph(theme, switch_on, data, disp_typ, selected_teams, group_b
             pointpos=0,
             hoveron = 'points+kde', #'violins+points+kde'
             opacity=1,
-            fillcolor='rgba(158,202,225,0.0)'
+            fillcolor='rgba(225,225,225,0.0)' # Makes the violin fill transparent
         )
 
 
@@ -1053,7 +1087,9 @@ def update_split_graph(theme, switch_on, data, disp_typ, selected_teams, group_b
         # Else use the existing data
         fig = go.Figure(fig)
 
-    fig.update_layout(template=template, height=600, violinmode=violinmode) # autosize=True
+    # fig.update_yaxes() # autotypenumbers='strict', categoryorder='array', categoryarray=
+    fig.update_xaxes(rangeslider_visible=True)
+    fig.update_layout(template=template, height=600, violinmode=violinmode,) # autosize=True
     return fig
 
 
@@ -1107,4 +1143,5 @@ if __name__ == '__main__':
 '''
 TODO
     * Sync team line color with group and change line type if group_by not none
+    * Add mean line with labels
 '''

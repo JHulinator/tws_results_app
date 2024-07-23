@@ -1016,9 +1016,6 @@ def update_split_graph(theme, switch_on, data, disp_typ, selected_teams, group_b
         'None':None,
         'Class':'Class'
     }
-    dispdict = {
-
-    }
     
     if is_overlay:
         violinmode = 'overlay'
@@ -1057,14 +1054,9 @@ def update_split_graph(theme, switch_on, data, disp_typ, selected_teams, group_b
         #color_discrete_sequence = theam_colors
         )
 
-        fig.update_yaxes(tickformat=tickformat)
+        fig.update_yaxes(tickformat=tickformat, title_text=disp_typ)
         fig.update_traces(
             meanline_visible=True, 
-            # hovertemplate='<b>Boat# %{customdata[0]}</b><br>' +
-            # '<b>%{customdata[1]}</b><br><br>'+
-            # '%{customdata[2]}-Overall, %{customdata[3]}-%{customdata[4]}<br>'+
-            # disp_typ + ' for %{x}: %{y}'+
-            # '<extra>%{customdata[5]}</extra>',
             hovertemplate = hovertemplate,
             pointpos=0,
             hoveron = 'points+kde', #'violins+points+kde'
@@ -1077,17 +1069,39 @@ def update_split_graph(theme, switch_on, data, disp_typ, selected_teams, group_b
         if selected_teams != '{"columns":[],"index":[],"data":[]}':
             teams = pd.read_json(selected_teams,orient='split')[['year', 'Overall Place']]
             splits = pd.read_json(data,orient='split')
-
-            for team in teams.iterrows():
-                team = team[1]
-                fig.add_trace(
-                    go.Scatter(
-                        x=splits.loc[(splits['year'] == team['year']) & (splits['Overall Place'] == team['Overall Place']), 'Split Name'],
-                        y=splits.loc[(splits['year'] == team['year']) & (splits['Overall Place'] == team['Overall Place']), DISP_TYP_DICT[disp_typ]],
-                        mode='lines',
-                        name=splits.loc[(splits['year'] == team['year']) & (splits['Overall Place'] == team['Overall Place']), 'Team Name'].iloc[0]
+            
+            if len(fig.data) > 1:
+                # In this case we need to figure out the color that each each trace should be
+                colors = {}
+                for violin in fig.data:
+                    color = violin.marker.color
+                    year = str(violin.name)
+                    colors.update({year:color})
+                line_i = 0
+                line_dashs = {0:'solid', 1:'dot', 2:'dash', 3:'longdash', 4:'dashdot', 5:'longdashdot'}
+                for team in teams.iterrows():
+                    team = team[1]
+                    fig.add_trace(
+                        go.Scatter(
+                            x=splits.loc[(splits['year'] == team['year']) & (splits['Overall Place'] == team['Overall Place']), 'Split Name'],
+                            y=splits.loc[(splits['year'] == team['year']) & (splits['Overall Place'] == team['Overall Place']), DISP_TYP_DICT[disp_typ]],
+                            mode='lines',
+                            name=splits.loc[(splits['year'] == team['year']) & (splits['Overall Place'] == team['Overall Place']), 'Team Name'].iloc[0],
+                            line={'color':colors[str(team['year'])], 'dash':line_dashs[line_i]}
+                        )
                     )
-                )
+                    line_i = 0 if line_i == 5 else line_i + 1
+            else:
+                for team in teams.iterrows():
+                    team = team[1]
+                    fig.add_trace(
+                        go.Scatter(
+                            x=splits.loc[(splits['year'] == team['year']) & (splits['Overall Place'] == team['Overall Place']), 'Split Name'],
+                            y=splits.loc[(splits['year'] == team['year']) & (splits['Overall Place'] == team['Overall Place']), DISP_TYP_DICT[disp_typ]],
+                            mode='lines',
+                            name=splits.loc[(splits['year'] == team['year']) & (splits['Overall Place'] == team['Overall Place']), 'Team Name'].iloc[0]
+                        )
+                    )
     
     else:
         # Else use the existing data
@@ -1148,7 +1162,7 @@ if __name__ == '__main__':
 
 '''
 TODO
-    * Sync team line color with group and change line type if group_by not none
+    * Sync team line color with group and change line type if group_by not none (currently only working if grouped by year)
     * Add mean line with labels
     * Fix the colors to plot with the theme
 '''

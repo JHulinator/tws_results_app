@@ -807,7 +807,7 @@ data = filter_data()
 grid = dag.AgGrid(
     id="grid",
     defaultColDef={"flex": 1, "minWidth": 40, "sortable": True, "resizable": True,},
-    dashGridOptions={'rowSelection':'multiple'},
+    dashGridOptions={'rowSelection':'multiple', 'suppressRowClickSelection':True, 'suppressCellFocus':True},
     style={'--ag-grid-size': 3,
            '--ag-row-height':3},
     columnSize = 'sizeToFit'
@@ -1033,6 +1033,7 @@ def update_split_graph(theme, switch_on, data, disp_typ, selected_teams, group_b
         # Add data to chart    
         figure_data = pd.read_json(data,orient='split')
         hovertemplate='<b>Boat# %{customdata[0]}</b><br><b>%{customdata[1]}</b><br><br>%{customdata[2]}-Overall, %{customdata[3]}-%{customdata[4]}<br>' + disp_typ + ' for %{x}: %{y}<extra>%{customdata[5]}</extra>'
+        hovertemplate_trace=disp_typ + ' for %{x}: %{y}'
         if disp_typ == 'Time of day':
             figure_data[DISP_TYP_DICT[disp_typ]] = pd.to_datetime(figure_data['datetime_2000_1_1'])
             tickformat = '%a %H:%M'
@@ -1045,6 +1046,7 @@ def update_split_graph(theme, switch_on, data, disp_typ, selected_teams, group_b
         elif disp_typ == 'Speed':
             tickformat ='%2f'
             hovertemplate='<b>Boat# %{customdata[0]}</b><br><b>%{customdata[1]}</b><br><br>%{customdata[2]}-Overall, %{customdata[3]}-%{customdata[4]}<br>' + disp_typ + ' for %{x}: %{y:.2f}MPH<extra>%{customdata[5]}</extra>'
+            hovertemplate_trace=disp_typ + ' for %{x}: %{y:.2f}MPH'
     
         fig = px.violin(figure_data, y=DISP_TYP_DICT[disp_typ], x='Split Name', 
         color=gpdict[group_by], 
@@ -1067,39 +1069,51 @@ def update_split_graph(theme, switch_on, data, disp_typ, selected_teams, group_b
 
         # Add scater plots if teams are selected
         if selected_teams != '{"columns":[],"index":[],"data":[]}':
-            teams = pd.read_json(selected_teams,orient='split')[['year', 'Overall Place']]
+            teams = pd.read_json(selected_teams,orient='split')[['year', 'Overall Place', 'Class']]
             splits = pd.read_json(data,orient='split')
             
+            # Are there more then one violin plots
             if len(fig.data) > 1:
                 # In this case we need to figure out the color that each each trace should be
                 colors = {}
+                line_is = {}
+                # dashes 
                 for violin in fig.data:
                     color = violin.marker.color
-                    year = str(violin.name)
-                    colors.update({year:color})
-                line_i = 0
+                    key = str(violin.name)
+                    colors.update({key:color})
+                    line_is.update({key:0})
+                # line_i = 0
                 line_dashs = {0:'solid', 1:'dot', 2:'dash', 3:'longdash', 4:'dashdot', 5:'longdashdot'}
                 for team in teams.iterrows():
                     team = team[1]
+                    color_key = str(team['year']) if group_by == 'Year' else str(team['Class'])
+                    name = splits.loc[(splits['year'] == team['year']) & (splits['Overall Place'] == team['Overall Place']), 'Team Name'].iloc[0]
                     fig.add_trace(
                         go.Scatter(
                             x=splits.loc[(splits['year'] == team['year']) & (splits['Overall Place'] == team['Overall Place']), 'Split Name'],
                             y=splits.loc[(splits['year'] == team['year']) & (splits['Overall Place'] == team['Overall Place']), DISP_TYP_DICT[disp_typ]],
                             mode='lines',
-                            name=splits.loc[(splits['year'] == team['year']) & (splits['Overall Place'] == team['Overall Place']), 'Team Name'].iloc[0],
-                            line={'color':colors[str(team['year'])], 'dash':line_dashs[line_i]}
+                            name=name,
+                            line={'color':colors[color_key], 'dash':line_dashs[line_is[color_key]]},
+                            # customdata=[str(team['year'])],
+                            hovertemplate=f'<b>{name}</b><br>' + hovertemplate_trace + f'<extra>{team.year}</extra>',
                         )
                     )
-                    line_i = 0 if line_i == 5 else line_i + 1
+                    # line_i = 0 if line_i == 5 else line_i + 1
+                    line_is[color_key] = 0 if line_is[color_key] == 5 else line_is[color_key] + 1
             else:
                 for team in teams.iterrows():
                     team = team[1]
+                    name = splits.loc[(splits['year'] == team['year']) & (splits['Overall Place'] == team['Overall Place']), 'Team Name'].iloc[0]
                     fig.add_trace(
                         go.Scatter(
                             x=splits.loc[(splits['year'] == team['year']) & (splits['Overall Place'] == team['Overall Place']), 'Split Name'],
                             y=splits.loc[(splits['year'] == team['year']) & (splits['Overall Place'] == team['Overall Place']), DISP_TYP_DICT[disp_typ]],
                             mode='lines',
-                            name=splits.loc[(splits['year'] == team['year']) & (splits['Overall Place'] == team['Overall Place']), 'Team Name'].iloc[0]
+                            name=name,
+                            # customdata=[str(team['year'])],
+                            hovertemplate=f'<b>{name}</b><br>' + hovertemplate_trace + f'<extra>{team.year}</extra>',
                         )
                     )
     
@@ -1108,7 +1122,7 @@ def update_split_graph(theme, switch_on, data, disp_typ, selected_teams, group_b
         fig = go.Figure(fig)
 
     # fig.update_yaxes() # autotypenumbers='strict', categoryorder='array', categoryarray=
-    fig.update_xaxes(rangeslider_visible=True)
+    # fig.update_xaxes(rangeslider_visible=True)
     fig.update_layout(template=template, height=600, violinmode=violinmode,) # autosize=True
     return fig
 
@@ -1162,7 +1176,6 @@ if __name__ == '__main__':
 
 '''
 TODO
-    * Sync team line color with group and change line type if group_by not none (currently only working if grouped by year)
     * Add mean line with labels
     * Fix the colors to plot with the theme
 '''

@@ -319,6 +319,13 @@ def name_formatter(names:str) -> str:
     name_str = name_str[:-3] # Remove the last separator
     return name_str
 
+def cont_competitors(names:str) -> int:
+    names = names.split(';') # Make a list of all team members names
+    count = 0
+    for name in names:
+        if 'TC' not in name and len(name) > 2:
+            count += 1
+    return count
 
 def get_raw_data(year: int) -> pd.DataFrame:
     # print('Enter: get_raw_data ---------------\n')
@@ -417,6 +424,9 @@ def get_raw_data(year: int) -> pd.DataFrame:
     # Add a column with the string formatted total_time
     df['str_hours'] = df['Hours'].apply(lambda x: f'{divmod(x.seconds, 3600)[0] + 24*x.days}:{divmod(divmod(x.seconds, 3600)[1], 60)[0]}:{divmod(divmod(x.seconds, 3600)[1], 60)[1]}')
 
+    # Add column with the hours as float
+    df['float_hours'] = df['Hours'].apply(lambda x: 24*x.days + x.seconds / 3600)
+
     # Add a column with the string formatted time_of_day
     df.dropna(axis=0, subset='Split Time', inplace=True)
     df['datetime_2000_1_1'] = df['Hours'].apply(lambda x: pd.to_datetime('2000-1-1 09:00') + x) # df['Hours'].apply(lambda x: f'{day_dict[1+x.days+1*(divmod(x.seconds, 3600)[0]>15)]} {9+divmod(x.seconds, 3600)[0]-24*(divmod(x.seconds, 3600)[0]>15)}:{divmod(divmod(x.seconds, 3600)[1], 60)[0]}')
@@ -428,9 +438,12 @@ def get_raw_data(year: int) -> pd.DataFrame:
 
     # Add a column for the finish time
     df['Finish time'] = df.apply(lambda z: df['Hours'].loc[df['Boat #'] == z['Boat #']].max().seconds / 3600 + df['Hours'].loc[df['Boat #'] == z['Boat #']].max().days * 24, axis=1)
-
+    
     # Get a string formatted team name
     df['Team Name'] = df['Team Members'].apply(name_formatter)
+
+    # Get compeditor count
+    df['Competitor count'] = df['Team Members'].apply(cont_competitors)
 
     # print('Exit: get_raw_data ---------------\n')
     return df
@@ -1041,8 +1054,10 @@ def update_split_graph(theme, switch_on, data, disp_typ, selected_teams, group_b
             figure_data[DISP_TYP_DICT[disp_typ]] = pd.to_timedelta(figure_data[DISP_TYP_DICT[disp_typ]]) + pd.to_datetime('1970/01/01')
             tickformat = '%H:%M'
         elif disp_typ == 'Total time':
-            figure_data[DISP_TYP_DICT[disp_typ]] = figure_data['Hours']
-            tickformat = '%H:%M'
+            figure_data[DISP_TYP_DICT[disp_typ]] = pd.to_numeric(figure_data['float_hours']) # pd.to_timedelta(figure_data['Hours']) / 3600000000000 # pd.to_datetime(figure_data['datetime_2000_1_1']) - pd.to_datetime('2000/1/1 9:00am') # figure_data['Hours']
+            tickformat = '%2f'
+            hovertemplate='<b>Boat# %{customdata[0]}</b><br><b>%{customdata[1]}</b><br><br>%{customdata[2]}-Overall, %{customdata[3]}-%{customdata[4]}<br>' + disp_typ + ' for %{x}: %{y:.2f}:Hr.<extra>%{customdata[5]}</extra>'
+            hovertemplate_trace=disp_typ + ' for %{x}: %{y:.2f}Hr.'
         elif disp_typ == 'Speed':
             tickformat ='%2f'
             hovertemplate='<b>Boat# %{customdata[0]}</b><br><b>%{customdata[1]}</b><br><br>%{customdata[2]}-Overall, %{customdata[3]}-%{customdata[4]}<br>' + disp_typ + ' for %{x}: %{y:.2f}MPH<extra>%{customdata[5]}</extra>'
@@ -1067,10 +1082,11 @@ def update_split_graph(theme, switch_on, data, disp_typ, selected_teams, group_b
         )
 
 
-        # Add scater plots if teams are selected
+        # Add Scatter plots if teams are selected
         if selected_teams != '{"columns":[],"index":[],"data":[]}':
+            # Get the teams that need to pe 
             teams = pd.read_json(selected_teams,orient='split')[['year', 'Overall Place', 'Class']]
-            splits = pd.read_json(data,orient='split')
+
             
             # Are there more then one violin plots
             if len(fig.data) > 1:
@@ -1088,11 +1104,11 @@ def update_split_graph(theme, switch_on, data, disp_typ, selected_teams, group_b
                 for team in teams.iterrows():
                     team = team[1]
                     color_key = str(team['year']) if group_by == 'Year' else str(team['Class'])
-                    name = splits.loc[(splits['year'] == team['year']) & (splits['Overall Place'] == team['Overall Place']), 'Team Name'].iloc[0]
+                    name = figure_data.loc[(figure_data['year'] == team['year']) & (figure_data['Overall Place'] == team['Overall Place']), 'Team Name'].iloc[0]
                     fig.add_trace(
                         go.Scatter(
-                            x=splits.loc[(splits['year'] == team['year']) & (splits['Overall Place'] == team['Overall Place']), 'Split Name'],
-                            y=splits.loc[(splits['year'] == team['year']) & (splits['Overall Place'] == team['Overall Place']), DISP_TYP_DICT[disp_typ]],
+                            x=figure_data.loc[(figure_data['year'] == team['year']) & (figure_data['Overall Place'] == team['Overall Place']), 'Split Name'],
+                            y=figure_data.loc[(figure_data['year'] == team['year']) & (figure_data['Overall Place'] == team['Overall Place']), DISP_TYP_DICT[disp_typ]],
                             mode='lines',
                             name=name,
                             line={'color':colors[color_key], 'dash':line_dashs[line_is[color_key]]},
@@ -1105,18 +1121,17 @@ def update_split_graph(theme, switch_on, data, disp_typ, selected_teams, group_b
             else:
                 for team in teams.iterrows():
                     team = team[1]
-                    name = splits.loc[(splits['year'] == team['year']) & (splits['Overall Place'] == team['Overall Place']), 'Team Name'].iloc[0]
+                    name = figure_data.loc[(figure_data['year'] == team['year']) & (figure_data['Overall Place'] == team['Overall Place']), 'Team Name'].iloc[0]
                     fig.add_trace(
                         go.Scatter(
-                            x=splits.loc[(splits['year'] == team['year']) & (splits['Overall Place'] == team['Overall Place']), 'Split Name'],
-                            y=splits.loc[(splits['year'] == team['year']) & (splits['Overall Place'] == team['Overall Place']), DISP_TYP_DICT[disp_typ]],
+                            x=figure_data.loc[(figure_data['year'] == team['year']) & (figure_data['Overall Place'] == team['Overall Place']), 'Split Name'],
+                            y=figure_data.loc[(figure_data['year'] == team['year']) & (figure_data['Overall Place'] == team['Overall Place']), DISP_TYP_DICT[disp_typ]],
                             mode='lines',
                             name=name,
                             # customdata=[str(team['year'])],
                             hovertemplate=f'<b>{name}</b><br>' + hovertemplate_trace + f'<extra>{team.year}</extra>',
                         )
                     )
-    
     else:
         # Else use the existing data
         fig = go.Figure(fig)
@@ -1176,6 +1191,5 @@ if __name__ == '__main__':
 
 '''
 TODO
-    * Add mean line with labels
     * Fix the colors to plot with the theme
 '''

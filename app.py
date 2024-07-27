@@ -972,8 +972,6 @@ def toggle_filter_collapse(n, is_open):
     Output('count_filter', 'value'),
     Output('count_filter_an', 'value'),
     Output('data', 'data'),
-    #Output('selected_teams', 'data'),
-    #Output('grind', 'selectedRows'),
 
     # Inputs
     Input('year_filter', 'value'),

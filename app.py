@@ -858,11 +858,17 @@ split_tab = dbc.Tab([
     graph_controls,
     dcc.Graph(figure=go.Figure(),
               id='split_graph',
-              config = {'autosizable':True, 'scrollZoom':True},
+              config = {
+                'autosizable':True, 
+                'scrollZoom':True,
+                'displaylogo':False,
+                'displayModeBar': True,
+                'modeBarButtonsToRemove':['lasso','select2d', 'resetScale2d']
+                },
               style={'height':'auto'}
               )
 ],
-               label='Split Times', 
+               label='Split Distributions', 
                class_name='h-4',
                style={'height':'auto'}
                )
@@ -877,7 +883,7 @@ tab4 = dbc.Tab([],
                disabled = True
                )
 
-tabs = dbc.Tabs([split_tab, tab3, tab4, animation_tab], style={'height':'auto'}) # dbc.Card(dbc.Tabs([split_tab, tab3, tab4, animation_tab]))
+tabs = dbc.Tabs([split_tab,], style={'height':'auto'}) # dbc.Card(dbc.Tabs([split_tab, tab3, tab4, animation_tab]))
 # endregion
 # endregion -----------------------------------------------------------------------------------------------------------
 
@@ -966,6 +972,9 @@ def toggle_filter_collapse(n, is_open):
     Output('count_filter', 'value'),
     Output('count_filter_an', 'value'),
     Output('data', 'data'),
+    #Output('selected_teams', 'data'),
+    #Output('grind', 'selectedRows'),
+
     # Inputs
     Input('year_filter', 'value'),
     Input('year-multi-select', 'value'),
@@ -1009,7 +1018,13 @@ def filter_update(year_filter, multi_value, class_filter, class_filter_an, pos_f
                               time_filter=time_filter
                               )
 
+    # Find teams that are first overall
+    print(fd_df.loc[fd_df['Overall Place'] == '1'])
+    # Select the rows of all first place overall teams
+
     return multi_value, year_filter, class_filter, class_filter_an, gender_filter, gender_filter_an, count_filter, count_filter_an, fd_df.to_json(orient='split')
+
+
 
 @app.callback(
     Output('split_graph', 'figure'),
@@ -1041,101 +1056,95 @@ def update_split_graph(theme, switch_on, data, disp_typ, selected_teams, group_b
     template_name = theme.split('/')[-2]
     template = pio.templates[template_name] if switch_on else pio.templates[f'{template_name}_dark']
 
-    # If triggered by data change
-    if trigger_id =='data' or trigger_id == 'disp_typ' or trigger_id == 'selected_teams' or trigger_id == 'group_by':
-        # Add data to chart    
-        figure_data = pd.read_json(data,orient='split')
-        hovertemplate='<b>Boat# %{customdata[0]}</b><br><b>%{customdata[1]}</b><br><br>%{customdata[2]}-Overall, %{customdata[3]}-%{customdata[4]}<br>' + disp_typ + ' for %{x}: %{y}<extra>%{customdata[5]}</extra>'
-        hovertemplate_trace=disp_typ + ' for %{x}: %{y}'
-        if disp_typ == 'Time of day':
-            figure_data[DISP_TYP_DICT[disp_typ]] = pd.to_datetime(figure_data['datetime_2000_1_1'])
-            tickformat = '%a %H:%M'
-        elif disp_typ == 'Split time':
-            figure_data[DISP_TYP_DICT[disp_typ]] = pd.to_timedelta(figure_data[DISP_TYP_DICT[disp_typ]]) + pd.to_datetime('1970/01/01')
-            tickformat = '%H:%M'
-        elif disp_typ == 'Total time':
-            figure_data[DISP_TYP_DICT[disp_typ]] = pd.to_numeric(figure_data['float_hours']) # pd.to_timedelta(figure_data['Hours']) / 3600000000000 # pd.to_datetime(figure_data['datetime_2000_1_1']) - pd.to_datetime('2000/1/1 9:00am') # figure_data['Hours']
-            tickformat = '%2f'
-            hovertemplate='<b>Boat# %{customdata[0]}</b><br><b>%{customdata[1]}</b><br><br>%{customdata[2]}-Overall, %{customdata[3]}-%{customdata[4]}<br>' + disp_typ + ' for %{x}: %{y:.2f}:Hr.<extra>%{customdata[5]}</extra>'
-            hovertemplate_trace=disp_typ + ' for %{x}: %{y:.2f}Hr.'
-        elif disp_typ == 'Speed':
-            tickformat ='%2f'
-            hovertemplate='<b>Boat# %{customdata[0]}</b><br><b>%{customdata[1]}</b><br><br>%{customdata[2]}-Overall, %{customdata[3]}-%{customdata[4]}<br>' + disp_typ + ' for %{x}: %{y:.2f}MPH<extra>%{customdata[5]}</extra>'
-            hovertemplate_trace=disp_typ + ' for %{x}: %{y:.2f}MPH'
-    
-        fig = px.violin(figure_data, y=DISP_TYP_DICT[disp_typ], x='Split Name', 
-        color=gpdict[group_by], 
-        points='all', 
-        custom_data=['Boat #', 'Team Name', 'Overall Place', 'Class Place', 'Class', 'year'],
-        category_orders= {'Split Name':[split for split in TWS_CHECKPOINTS.index if split in figure_data['Split Name'].unique()]},
-        template=template
-        #color_discrete_sequence = theam_colors
-        )
 
-        fig.update_yaxes(tickformat=tickformat, title_text=disp_typ)
-        fig.update_traces(
-            meanline_visible=True, 
-            hovertemplate = hovertemplate,
-            pointpos=0,
-            hoveron = 'points+kde', #'violins+points+kde'
-            opacity=1,
-            fillcolor='rgba(225,225,225,0.0)' # Makes the violin fill transparent
-        )
+    # Add data to chart    
+    figure_data = pd.read_json(data,orient='split')
+    hovertemplate='<b>Boat# %{customdata[0]}</b><br><b>%{customdata[1]}</b><br><br>%{customdata[2]}-Overall, %{customdata[3]}-%{customdata[4]}<br>' + disp_typ + ' for %{x}: %{y}<extra>%{customdata[5]}</extra>'
+    hovertemplate_trace=disp_typ + ' for %{x}: %{y}'
+    if disp_typ == 'Time of day':
+        figure_data[DISP_TYP_DICT[disp_typ]] = pd.to_datetime(figure_data['datetime_2000_1_1'])
+        tickformat = '%a %H:%M'
+    elif disp_typ == 'Split time':
+        figure_data[DISP_TYP_DICT[disp_typ]] = pd.to_timedelta(figure_data[DISP_TYP_DICT[disp_typ]]) + pd.to_datetime('1970/01/01')
+        tickformat = '%H:%M'
+    elif disp_typ == 'Total time':
+        figure_data[DISP_TYP_DICT[disp_typ]] = pd.to_numeric(figure_data['float_hours']) # pd.to_timedelta(figure_data['Hours']) / 3600000000000 # pd.to_datetime(figure_data['datetime_2000_1_1']) - pd.to_datetime('2000/1/1 9:00am') # figure_data['Hours']
+        tickformat = '%2f'
+        hovertemplate='<b>Boat# %{customdata[0]}</b><br><b>%{customdata[1]}</b><br><br>%{customdata[2]}-Overall, %{customdata[3]}-%{customdata[4]}<br>' + disp_typ + ' for %{x}: %{y:.2f}:Hr.<extra>%{customdata[5]}</extra>'
+        hovertemplate_trace=disp_typ + ' for %{x}: %{y:.2f}Hr.'
+    elif disp_typ == 'Speed':
+        tickformat ='%2f'
+        hovertemplate='<b>Boat# %{customdata[0]}</b><br><b>%{customdata[1]}</b><br><br>%{customdata[2]}-Overall, %{customdata[3]}-%{customdata[4]}<br>' + disp_typ + ' for %{x}: %{y:.2f}MPH<extra>%{customdata[5]}</extra>'
+        hovertemplate_trace=disp_typ + ' for %{x}: %{y:.2f}MPH'
+
+    fig = px.violin(figure_data, y=DISP_TYP_DICT[disp_typ], x='Split Name', 
+    color=gpdict[group_by], 
+    points='all', 
+    custom_data=['Boat #', 'Team Name', 'Overall Place', 'Class Place', 'Class', 'year'],
+    category_orders= {'Split Name':[split for split in TWS_CHECKPOINTS.index if split in figure_data['Split Name'].unique()]},
+    template=template
+    #color_discrete_sequence = theam_colors
+    )
+
+    fig.update_yaxes(tickformat=tickformat, title_text=disp_typ)
+    fig.update_traces(
+        meanline_visible=True, 
+        hovertemplate = hovertemplate,
+        pointpos=0,
+        hoveron = 'points+kde', #'violins+points+kde'
+        opacity=1,
+        fillcolor='rgba(225,225,225,0.0)' # Makes the violin fill transparent
+    )
 
 
-        # Add Scatter plots if teams are selected
-        if selected_teams != '{"columns":[],"index":[],"data":[]}':
-            # Get the teams that need to pe 
-            teams = pd.read_json(selected_teams,orient='split')[['year', 'Overall Place', 'Class']]
+    # Add Scatter plots if teams are selected
+    if selected_teams != '{"columns":[],"index":[],"data":[]}':
+        # Get the teams that need to pe 
+        teams = pd.read_json(selected_teams,orient='split')[['year', 'Overall Place', 'Class']]
 
-            
-            # Are there more then one violin plots
-            if len(fig.data) > 1:
-                # In this case we need to figure out the color that each each trace should be
-                colors = {}
-                line_is = {}
-                # dashes 
-                for violin in fig.data:
-                    color = violin.marker.color
-                    key = str(violin.name)
-                    colors.update({key:color})
-                    line_is.update({key:0})
-                # line_i = 0
-                line_dashs = {0:'solid', 1:'dot', 2:'dash', 3:'longdash', 4:'dashdot', 5:'longdashdot'}
-                for team in teams.iterrows():
-                    team = team[1]
-                    color_key = str(team['year']) if group_by == 'Year' else str(team['Class'])
-                    name = figure_data.loc[(figure_data['year'] == team['year']) & (figure_data['Overall Place'] == team['Overall Place']), 'Team Name'].iloc[0]
-                    fig.add_trace(
-                        go.Scatter(
-                            x=figure_data.loc[(figure_data['year'] == team['year']) & (figure_data['Overall Place'] == team['Overall Place']), 'Split Name'],
-                            y=figure_data.loc[(figure_data['year'] == team['year']) & (figure_data['Overall Place'] == team['Overall Place']), DISP_TYP_DICT[disp_typ]],
-                            mode='lines',
-                            name=name,
-                            line={'color':colors[color_key], 'dash':line_dashs[line_is[color_key]]},
-                            # customdata=[str(team['year'])],
-                            hovertemplate=f'<b>{name}</b><br>' + hovertemplate_trace + f'<extra>{team.year}</extra>',
-                        )
+        
+        # Are there more then one violin plots
+        if len(fig.data) > 1:
+            # In this case we need to figure out the color that each each trace should be
+            colors = {}
+            line_is = {}
+            # dashes 
+            for violin in fig.data:
+                color = violin.marker.color
+                key = str(violin.name)
+                colors.update({key:color})
+                line_is.update({key:0})
+            # line_i = 0
+            line_dashs = {0:'solid', 1:'dot', 2:'dash', 3:'longdash', 4:'dashdot', 5:'longdashdot'}
+            for team in teams.iterrows():
+                team = team[1]
+                color_key = str(team['year']) if group_by == 'Year' else str(team['Class'])
+                name = figure_data.loc[(figure_data['year'] == team['year']) & (figure_data['Overall Place'] == team['Overall Place']), 'Team Name'].iloc[0]
+                fig.add_trace(
+                    go.Scatter(
+                        x=figure_data.loc[(figure_data['year'] == team['year']) & (figure_data['Overall Place'] == team['Overall Place']), 'Split Name'],
+                        y=figure_data.loc[(figure_data['year'] == team['year']) & (figure_data['Overall Place'] == team['Overall Place']), DISP_TYP_DICT[disp_typ]],
+                        mode='lines',
+                        name=name,
+                        line={'color':colors[color_key], 'dash':line_dashs[line_is[color_key]]},
+                        # customdata=[str(team['year'])],
+                        hovertemplate=f'<b>{name}</b><br>' + hovertemplate_trace + f'<extra>{team.year}</extra>',
                     )
-                    # line_i = 0 if line_i == 5 else line_i + 1
-                    line_is[color_key] = 0 if line_is[color_key] == 5 else line_is[color_key] + 1
-            else:
-                lines_data = figure_data.loc[(figure_data['year'].isin(teams['year'])) & (figure_data['Overall Place'].isin(teams['Overall Place']))]
-                lines = px.line(lines_data, x='Split Name', y=DISP_TYP_DICT[disp_typ], template=template, color='Team Name',
-                    custom_data=['Boat #', 'Team Name', 'Overall Place', 'Class Place', 'Class', 'year']
                 )
-                lines.update_traces(
-                        hovertemplate= hovertemplate
-                )
-                for line in lines.data:
-                    fig.add_trace(line)
-    else:
-        # Else use the existing data
-        fig = go.Figure(fig)
+            
+                line_is[color_key] = 0 if line_is[color_key] == 5 else line_is[color_key] + 1
+        else:
+            lines_data = figure_data.loc[(figure_data['year'].isin(teams['year'])) & (figure_data['Overall Place'].isin(teams['Overall Place']))]
+            lines = px.line(lines_data, x='Split Name', y=DISP_TYP_DICT[disp_typ], template=template, color='Team Name',
+                custom_data=['Boat #', 'Team Name', 'Overall Place', 'Class Place', 'Class', 'year']
+            )
+            lines.update_traces(
+                    hovertemplate= hovertemplate
+            )
+            for line in lines.data:
+                fig.add_trace(line)
 
-    # fig.update_yaxes() # autotypenumbers='strict', categoryorder='array', categoryarray=
-    # fig.update_xaxes(rangeslider_visible=True)
-    fig.update_layout(height=600, violinmode=violinmode,) # autosize=True template=template
+    fig.update_layout(height=600, violinmode=violinmode,)
     return fig
 
 
@@ -1188,5 +1197,5 @@ if __name__ == '__main__':
 
 '''
 TODO
-    * Fix the colors to plot with the theme
+    *
 '''

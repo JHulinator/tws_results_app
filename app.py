@@ -1017,7 +1017,7 @@ def filter_update(year_filter, multi_value, class_filter, class_filter_an, pos_f
                               )
 
     # Find teams that are first overall
-    print(fd_df.loc[fd_df['Overall Place'] == '1'])
+    # print(fd_df.loc[fd_df['Overall Place'] == '1'])
     # Select the rows of all first place overall teams
 
     return multi_value, year_filter, class_filter, class_filter_an, gender_filter, gender_filter_an, count_filter, count_filter_an, fd_df.to_json(orient='split')

@@ -1068,6 +1068,7 @@ def update_split_graph(theme, switch_on, data, disp_typ, selected_teams, group_b
         points='all', 
         custom_data=['Boat #', 'Team Name', 'Overall Place', 'Class Place', 'Class', 'year'],
         category_orders= {'Split Name':[split for split in TWS_CHECKPOINTS.index if split in figure_data['Split Name'].unique()]},
+        template=template
         #color_discrete_sequence = theam_colors
         )
 
@@ -1119,26 +1120,22 @@ def update_split_graph(theme, switch_on, data, disp_typ, selected_teams, group_b
                     # line_i = 0 if line_i == 5 else line_i + 1
                     line_is[color_key] = 0 if line_is[color_key] == 5 else line_is[color_key] + 1
             else:
-                for team in teams.iterrows():
-                    team = team[1]
-                    name = figure_data.loc[(figure_data['year'] == team['year']) & (figure_data['Overall Place'] == team['Overall Place']), 'Team Name'].iloc[0]
-                    fig.add_trace(
-                        go.Scatter(
-                            x=figure_data.loc[(figure_data['year'] == team['year']) & (figure_data['Overall Place'] == team['Overall Place']), 'Split Name'],
-                            y=figure_data.loc[(figure_data['year'] == team['year']) & (figure_data['Overall Place'] == team['Overall Place']), DISP_TYP_DICT[disp_typ]],
-                            mode='lines',
-                            name=name,
-                            # customdata=[str(team['year'])],
-                            hovertemplate=f'<b>{name}</b><br>' + hovertemplate_trace + f'<extra>{team.year}</extra>',
-                        )
-                    )
+                lines_data = figure_data.loc[(figure_data['year'].isin(teams['year'])) & (figure_data['Overall Place'].isin(teams['Overall Place']))]
+                lines = px.line(lines_data, x='Split Name', y=DISP_TYP_DICT[disp_typ], template=template, color='Team Name',
+                    custom_data=['Boat #', 'Team Name', 'Overall Place', 'Class Place', 'Class', 'year']
+                )
+                lines.update_traces(
+                        hovertemplate= hovertemplate
+                )
+                for line in lines.data:
+                    fig.add_trace(line)
     else:
         # Else use the existing data
         fig = go.Figure(fig)
 
     # fig.update_yaxes() # autotypenumbers='strict', categoryorder='array', categoryarray=
     # fig.update_xaxes(rangeslider_visible=True)
-    fig.update_layout(template=template, height=600, violinmode=violinmode,) # autosize=True
+    fig.update_layout(height=600, violinmode=violinmode,) # autosize=True template=template
     return fig
 
 

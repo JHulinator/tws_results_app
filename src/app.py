@@ -27,7 +27,7 @@ import ast
 
 # region Globals  -----------------------------------------------------------------------------------------------------
 # Global Constants
-TWS_ROUTE = gpxpy.parse(open('tws_race_route.gpx', 'r'))
+TWS_ROUTE = gpxpy.parse(open('assets/tws_race_route.gpx', 'r'))
 TWS_TOTAL_MILES: float
 TWS_CHECKPOINTS: pd.DataFrame
 DEBUG = False
@@ -50,7 +50,7 @@ external_stylesheets = [dbc.themes.FLATLY, dbc.icons.BOOTSTRAP, dbc_css]
 app = Dash(external_stylesheets=external_stylesheets)
 server = app.server
 year = 2024
-years = os.listdir('assets/split_assets/')
+years = os.listdir('assets/split_data/')
 data: pd.DataFrame
 # endregion globals ---------------------------------------------------------------------------------------------------
 
@@ -295,7 +295,7 @@ def get_raw_data(year: int) -> pd.DataFrame:
     # This method reads the CSV split spreadsheet data as downloaded from https://www.texaswatersafari.org/
 
     # Read the data CSV file
-    file_str = 'assets/split_assets/' + str(year) + '/' + str(year) + '.csv'
+    file_str = 'assets/split_data/' + str(year) + '/' + str(year) + '.csv'
     df = pd.read_csv(file_str, sep=',', header=6)
 
     # Rename some columns. This is needed because the headers titles in the CSV do not align with the values (Why TWS?!?!).

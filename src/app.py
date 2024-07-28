@@ -47,7 +47,7 @@ DISP_TYP_DICT = {
 dbc_css = "https://cdn.jsdelivr.net/gh/AnnMarieW/dash-bootstrap-templates/dbc.min.css"
 
 external_stylesheets = [dbc.themes.FLATLY, dbc.icons.BOOTSTRAP, dbc_css]
-app = Dash(external_stylesheets=external_stylesheets, assets_folder='assets')
+app = Dash(external_stylesheets=external_stylesheets) # , assets_folder='assets'
 server = app.server
 year = 2024
 years = os.listdir('assets/split_data/')
@@ -855,8 +855,7 @@ tabs = dbc.Tabs([split_tab,], style={'height':'auto'}) # dbc.Card(dbc.Tabs([spli
 def main():
     print('Starting the main method------------------------------------------------------------------------------------')
     global DEBUG
-    # region Build the app layout
-
+    # Build the app layout
     app.layout = dbc.Container([
         html.Div(dbc.Stack(
             [
@@ -882,7 +881,6 @@ def main():
     fluid=True,
     class_name="dbc dbc-ag-grid",
     )
-    # endregion
     
     # if DEBUG: 
     #     app.run(debug=DEBUG)

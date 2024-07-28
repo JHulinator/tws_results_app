@@ -27,7 +27,7 @@ import ast
 
 # region Globals  -----------------------------------------------------------------------------------------------------
 # Global Constants
-TWS_ROUTE = gpxpy.parse(open('assets/tws_race_route.gpx', 'r'))
+TWS_ROUTE = gpxpy.parse(open('tws_race_route.gpx', 'r'))
 TWS_TOTAL_MILES: float
 TWS_CHECKPOINTS: pd.DataFrame
 DEBUG = False

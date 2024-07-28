@@ -48,6 +48,7 @@ dbc_css = "https://cdn.jsdelivr.net/gh/AnnMarieW/dash-bootstrap-templates/dbc.mi
 
 external_stylesheets = [dbc.themes.FLATLY, dbc.icons.BOOTSTRAP, dbc_css]
 app = Dash(external_stylesheets=external_stylesheets)
+server = app.server
 year = 2024
 years = os.listdir('data\\split_data\\')
 data: pd.DataFrame

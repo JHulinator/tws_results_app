@@ -32,32 +32,7 @@ TWS_TOTAL_MILES: float
 TWS_CHECKPOINTS: pd.DataFrame
 DEBUG = True
 CLASS_LIST = list(pd.read_csv('data\\class_list.csv', sep=',')['class'])
-PLOT_COLORS = {
-    0:'--bs-blue', # #2c3e50
-    1:'--bs-red', # #e74c3c
-    2:'--bs-green', ##18bc9c
-    3:'--bs-orange', ##fd7e14
-    4:'--bs-indigo', ##6610f2
-    5:'--bs-teal',
-    6:'--bs-gray',
-    7:'--bs-cyan',
-    8:'--bs-yellow',
-    9:'--bs-purple',
-    10:'--bs-pink',
-    }
-theam_colors = [
-    '--bs-blue', # #2c3e50
-    '--bs-red', # #e74c3c
-    '--bs-green', ##18bc9c
-    '--bs-orange', ##fd7e14
-    '--bs-indigo', ##6610f2
-    '--bs-teal',
-    '--bs-gray',
-    '--bs-cyan',
-    '--bs-yellow',
-    '--bs-purple',
-    '--bs-pink',
-]
+
 
 DISP_TYP_DICT = {
     'Time of day':'time_of_day',
@@ -66,19 +41,6 @@ DISP_TYP_DICT = {
     'Speed':'Split Speed',
 }
 
-# PLOT_COLORS = {
-#     0:'primary',
-#     1:'secondary',
-#     2:'success',
-#     3:'warning',
-#     4:'danger',
-#     5:'info',
-#     # 6:'gray',
-#     # 7:'cyan',
-#     # 8:'yellow',
-#     # 9:'purple',
-#     # 10:'pink',
-#     }
 
 # Global Variables
 # stylesheet with the .dbc class to style  dcc, DataTable and AG Grid components with a Bootstrap theme
@@ -565,11 +527,11 @@ def update_count(id:str, count_filter, count_filter_an) -> List:
 
 # region Data Set Up --------------------------------------------------------------------------------------------------
 # Get the Raw Results Data
-if exists('all_data.csv'):
-    full_df = pd.read_csv('all_data.csv', sep=',', index_col=0)
+if exists('data\\all_data.csv'):
+    full_df = pd.read_csv('data\\all_data.csv', sep=',', index_col=0)
 else:
     full_df = get_all_raw_data()
-    full_df.to_csv('all_data.csv')
+    full_df.to_csv('data\\all_data.csv')
 
 if DEBUG:
     pass
@@ -1081,7 +1043,6 @@ def update_split_graph(theme, switch_on, data, disp_typ, selected_teams, group_b
     custom_data=['Boat #', 'Team Name', 'Overall Place', 'Class Place', 'Class', 'year'],
     category_orders= {'Split Name':[split for split in TWS_CHECKPOINTS.index if split in figure_data['Split Name'].unique()]},
     template=template
-    #color_discrete_sequence = theam_colors
     )
 
     fig.update_yaxes(tickformat=tickformat, title_text=disp_typ)

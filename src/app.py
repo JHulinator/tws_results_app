@@ -30,7 +30,7 @@ import ast
 TWS_ROUTE = gpxpy.parse(open('data\\tws_race_route.gpx', 'r'))
 TWS_TOTAL_MILES: float
 TWS_CHECKPOINTS: pd.DataFrame
-DEBUG = True
+DEBUG = False
 CLASS_LIST = list(pd.read_csv('data\\class_list.csv', sep=',')['class'])
 
 

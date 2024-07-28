@@ -888,7 +888,7 @@ def main():
     if DEBUG: 
         app.run(debug=DEBUG)
     else:
-        app.run(host='0.0.0.0', port=8050, debug=True)
+        app.run(host='0.0.0.0', port=8050, debug=False)
     print('Successfully reached the end of main -----------------------------------------------------------------------')
 
 # region Callbacks ----------------------------------------------------------------------------------------------------
@@ -1156,10 +1156,10 @@ def team_selected(rows):
 
 
 # Call the main method
-if __name__ == '__main__':
-    main()
+# if __name__ == '__main__':
+#     main()
 
-# main()
+main()
 
 '''
 TODO

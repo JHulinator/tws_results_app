@@ -27,11 +27,11 @@ import ast
 
 # region Globals  -----------------------------------------------------------------------------------------------------
 # Global Constants
-TWS_ROUTE = gpxpy.parse(open('data\\tws_race_route.gpx', 'r'))
+TWS_ROUTE = gpxpy.parse(open('data/tws_race_route.gpx', 'r'))
 TWS_TOTAL_MILES: float
 TWS_CHECKPOINTS: pd.DataFrame
 DEBUG = False
-CLASS_LIST = list(pd.read_csv('data\\class_list.csv', sep=',')['class'])
+CLASS_LIST = list(pd.read_csv('data/class_list.csv', sep=',')['class'])
 
 
 DISP_TYP_DICT = {
@@ -50,7 +50,7 @@ external_stylesheets = [dbc.themes.FLATLY, dbc.icons.BOOTSTRAP, dbc_css]
 app = Dash(external_stylesheets=external_stylesheets)
 server = app.server
 year = 2024
-years = os.listdir('data\\split_data\\')
+years = os.listdir('data/split_data/')
 data: pd.DataFrame
 # endregion globals ---------------------------------------------------------------------------------------------------
 
@@ -162,7 +162,7 @@ def get_miles_from_start(latitude:float, longitude:float) -> float:
 TWS_TOTAL_MILES = get_track_len(TWS_ROUTE.tracks[0])
 
 # Read The list of Checkpoints
-TWS_CHECKPOINTS = pd.read_csv('data\\tws_checkpoint_list.csv', sep=',', index_col=0)
+TWS_CHECKPOINTS = pd.read_csv('data/tws_checkpoint_list.csv', sep=',', index_col=0)
 
 # Add a milage for each checkpoint
 TWS_CHECKPOINTS['Milage'] = 0.0
@@ -236,23 +236,23 @@ def find_class(str_class:str) -> str:
     return return_class
 
 def find_gender(str_class:str) -> str:
-    df_class = pd.read_csv('data\\class_list.csv', sep=',', index_col='class')['gender']
+    df_class = pd.read_csv('data/class_list.csv', sep=',', index_col='class')['gender']
     return str(df_class.loc[str_class])
 
 def find_hull_ln(str_class:str) -> str:
-    df_class = pd.read_csv('data\\class_list.csv', sep=',', index_col='class')['hull lenght restriction']
+    df_class = pd.read_csv('data/class_list.csv', sep=',', index_col='class')['hull lenght restriction']
     return str(df_class.loc[str_class])
 
 def find_hull_width(str_class:str) -> str:
-    df_class = pd.read_csv('data\\class_list.csv', sep=',', index_col='class')['hull width restriction']
+    df_class = pd.read_csv('data/class_list.csv', sep=',', index_col='class')['hull width restriction']
     return str(df_class.loc[str_class])
 
 def is_rudder(str_class:str) -> bool:
-    df_class = pd.read_csv('data\\class_list.csv', sep=',', index_col='class')['rudder restriction']
+    df_class = pd.read_csv('data/class_list.csv', sep=',', index_col='class')['rudder restriction']
     return not bool(df_class.loc[str_class])
 
 def is_double_blade(str_class:str) -> bool:
-    df_class = pd.read_csv('data\\class_list.csv', sep=',', index_col='class')['double blade restriction']
+    df_class = pd.read_csv('data/class_list.csv', sep=',', index_col='class')['double blade restriction']
     return not bool(df_class.loc[str_class])
 
 def is_masters(str_recognition:str) -> bool:
@@ -295,7 +295,7 @@ def get_raw_data(year: int) -> pd.DataFrame:
     # This method reads the CSV split spreadsheet data as downloaded from https://www.texaswatersafari.org/
 
     # Read the data CSV file
-    file_str = 'Data\\split_data\\' + str(year) + '/' + str(year) + '.csv'
+    file_str = 'Data/split_data/' + str(year) + '/' + str(year) + '.csv'
     df = pd.read_csv(file_str, sep=',', header=6)
 
     # Rename some columns. This is needed because the headers titles in the CSV do not align with the values (Why TWS?!?!).
@@ -528,11 +528,11 @@ def update_count(id:str, count_filter, count_filter_an) -> List:
 
 # region Data Set Up --------------------------------------------------------------------------------------------------
 # Get the Raw Results Data
-if exists('data\\all_data.csv'):
-    full_df = pd.read_csv('data\\all_data.csv', sep=',', index_col=0)
+if exists('data/all_data.csv'):
+    full_df = pd.read_csv('data/all_data.csv', sep=',', index_col=0)
 else:
     full_df = get_all_raw_data()
-    full_df.to_csv('data\\all_data.csv')
+    full_df.to_csv('data/all_data.csv')
 
 if DEBUG:
     pass

@@ -47,7 +47,7 @@ DISP_TYP_DICT = {
 dbc_css = "https://cdn.jsdelivr.net/gh/AnnMarieW/dash-bootstrap-templates/dbc.min.css"
 
 external_stylesheets = [dbc.themes.FLATLY, dbc.icons.BOOTSTRAP, dbc_css]
-app = Dash(external_stylesheets=external_stylesheets) # , assets_folder='assets'
+app = Dash(__name__, external_stylesheets=external_stylesheets) # , assets_folder='assets'
 server = app.server
 # app.config.suppress_callback_exceptions=True
 year = 2024
@@ -1156,10 +1156,10 @@ def team_selected(rows):
 
 
 # Call the main method
-# if __name__ == '__main__':
-#     main()
+if __name__ == '__main__':
+    main()
 
-main()
+# main()
 
 '''
 TODO

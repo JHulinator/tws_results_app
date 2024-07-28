@@ -4,7 +4,7 @@ warnings.simplefilter(action='ignore') # , category=FutureWarning
 from dash import Dash, html, dash_table, dcc, Input, Output, State, callback, Patch, clientside_callback, ctx, set_props
 import dash_bootstrap_components as dbc
 import dash_ag_grid as dag
-from dash_bootstrap_templates import ThemeChangerAIO, template_from_url
+from dash_bootstrap_templates import ThemeChangerAIO, template_from_url, ThemeSwitchAIO
 import plotly.graph_objects as go
 import plotly.express as px
 import plotly.io as pio
@@ -49,6 +49,7 @@ dbc_css = "https://cdn.jsdelivr.net/gh/AnnMarieW/dash-bootstrap-templates/dbc.mi
 external_stylesheets = [dbc.themes.FLATLY, dbc.icons.BOOTSTRAP, dbc_css]
 app = Dash(external_stylesheets=external_stylesheets) # , assets_folder='assets'
 server = app.server
+# app.config.suppress_callback_exceptions=True
 year = 2024
 years = os.listdir('assets/split_data/')
 data: pd.DataFrame
@@ -543,11 +544,13 @@ if DEBUG:
 # region Layout Elements ----------------------------------------------------------------------------------------------
 color_mode_switch =  html.Span(
     [
-        dbc.Label(className='bi bi-moon', html_for="switch"), # fa fa-moon
-        dbc.Switch( id="switch", value=True, className="d-inline-block ms-1", persistence=True,),
-        dbc.Label(className='bi bi-brightness-high', html_for="switch"), #fa fa-sun
+        # dbc.Label(className='bi bi-moon', html_for="switch"), # fa fa-moon
+        # dbc.Switch( id="switch", value=True, className="d-inline-block ms-1", persistence=True,),
+        # dbc.Label(className='bi bi-brightness-high', html_for="switch"), #fa fa-sun
+        ThemeSwitchAIO(aio_id='switch')
     ]
 )
+# color_mode_switch = ThemeSwitchAIO(aio_id='switch')
 
 theme_controls = ThemeChangerAIO(aio_id='theme', 
                                  offcanvas_props={'placement':'end'}, 
@@ -882,11 +885,10 @@ def main():
     class_name="dbc dbc-ag-grid",
     )
     
-    # if DEBUG: 
-    #     app.run(debug=DEBUG)
-    # else:
-    #     app.run(debug=False, port=8050)
-    app.run(host='0.0.0.0', port=8050, debug=True)
+    if DEBUG: 
+        app.run(debug=DEBUG)
+    else:
+        app.run(host='0.0.0.0', port=8050, debug=True)
     print('Successfully reached the end of main -----------------------------------------------------------------------')
 
 # region Callbacks ----------------------------------------------------------------------------------------------------
@@ -898,8 +900,8 @@ clientside_callback(
        return window.dash_clientside.no_update
     }
     """,
-    Output("switch", "id"),
-    Input("switch", "value"),
+    Output(ThemeSwitchAIO.ids.switch('switch'), "id"),
+    Input(ThemeSwitchAIO.ids.switch('switch'), "value"),
 )
 
 # collapsing the data table
@@ -992,7 +994,7 @@ def filter_update(year_filter, multi_value, class_filter, class_filter_an, pos_f
 @app.callback(
     Output('split_graph', 'figure'),
     Input(ThemeChangerAIO.ids.radio('theme'), 'value'),
-    Input('switch', 'value'),
+    Input(ThemeSwitchAIO.ids.switch('switch'), 'value'),
     Input('data', 'data'),
     Input('disp_typ', 'value'),
     Input('selected_teams', 'data'),

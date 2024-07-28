@@ -1152,8 +1152,10 @@ def team_selected(rows):
 
 
 # Call the main method
-if __name__ == '__main__':
-    main()
+# if __name__ == '__main__':
+#     main()
+
+main()
 
 '''
 TODO

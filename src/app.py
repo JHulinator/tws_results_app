@@ -47,7 +47,7 @@ DISP_TYP_DICT = {
 dbc_css = "https://cdn.jsdelivr.net/gh/AnnMarieW/dash-bootstrap-templates/dbc.min.css"
 
 external_stylesheets = [dbc.themes.FLATLY, dbc.icons.BOOTSTRAP, dbc_css]
-app = Dash(external_stylesheets=external_stylesheets)
+app = Dash(external_stylesheets=external_stylesheets, assets_folder='assets')
 server = app.server
 year = 2024
 years = os.listdir('assets/split_data/')
@@ -887,7 +887,7 @@ def main():
     if DEBUG: 
         app.run(debug=DEBUG)
     else:
-        app.run_server()
+        app.run(debug=True, port=10000)
     print('Successfully reached the end of main -----------------------------------------------------------------------')
 
 # region Callbacks ----------------------------------------------------------------------------------------------------

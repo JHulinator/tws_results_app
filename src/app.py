@@ -884,7 +884,10 @@ def main():
     )
     # endregion
     
-    app.run(debug=DEBUG)
+    if DEBUG: 
+        app.run(debug=DEBUG)
+    else:
+        app.run_server()
     print('Successfully reached the end of main -----------------------------------------------------------------------')
 
 # region Callbacks ----------------------------------------------------------------------------------------------------

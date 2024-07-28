@@ -887,7 +887,7 @@ def main():
     if DEBUG: 
         app.run(debug=DEBUG)
     else:
-        app.run(debug=True, port=10000)
+        app.run(debug=False, port=8050)
     print('Successfully reached the end of main -----------------------------------------------------------------------')
 
 # region Callbacks ----------------------------------------------------------------------------------------------------

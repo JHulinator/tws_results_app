@@ -24,14 +24,11 @@
 #        137058       00060     00002     Discharge, cubic feet per second (Minimum), Upstream of SW Barrier
 #        137059       00060     00003     Discharge, cubic feet per second (Mean), Upstream of SW Barrier
 #        277621       72137     00003     Discharge, tidally filtered, cubic feet per second (Mean)
-#
-# Data-value qualification codes included in this output:
-#        
+# Data-value qualification codes included in this output:    
 #     A  Approved for publication -- Processing and review completed.
 #     P  Provisional data subject to revision.
 #     >  Actual value is known to be greater than reported value.
 #     e  Value has been estimated.
-# 
 agency_cd	site_no	datetime	137051_00065_00001	137051_00065_00001_cd	137054_00065_00001	137054_00065_00001_cd	137055_00065_00002	137055_00065_00002_cd	137056_00065_00003	137056_00065_00003_cd	137057_00060_00001	137057_00060_00001_cd	137058_00060_00002	137058_00060_00002_cd	137059_00060_00003	137059_00060_00003_cd	277621_72137_00003	277621_72137_00003_cd
 5s	15s	20d	14n	10s	14n	10s	14n	10s	14n	10s	14n	10s	14n	10s	14n	10s	14n	10s
 USGS	08188800	1986-10-01	4.40	A														

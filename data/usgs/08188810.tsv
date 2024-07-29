@@ -13,7 +13,6 @@
 # Data for the following 1 site(s) are contained in this file
 #    USGS 08188810 Guadalupe Rv at SH 35 nr Tivoli, TX
 # -----------------------------------------------------------------------------------
-#
 # Data provided for site 08188810
 #            TS   parameter     statistic     Description
 #        137060       00065     00001     Gage height, feet (Maximum)
@@ -26,13 +25,10 @@
 #        325731       00060     00003     Discharge, cubic feet per second (Mean)
 #        325732       72255     00003     Mean water velocity for discharge computation, feet per second (Mean)
 #        325733       72255     00001     Mean water velocity for discharge computation, feet per second (Maximum)
-#
-# Data-value qualification codes included in this output:
-#        
+# Data-value qualification codes included in this output:    
 #     A  Approved for publication -- Processing and review completed.
 #     P  Provisional data subject to revision.
 #     e  Value has been estimated.
-# 
 agency_cd	site_no	datetime	137060_00065_00001	137060_00065_00001_cd	137061_00065_00002	137061_00065_00002_cd	137062_00065_00003	137062_00065_00003_cd	137064_72255_00002	137064_72255_00002_cd	137066_00060_00001	137066_00060_00001_cd	137067_00060_00002	137067_00060_00002_cd	277573_72137_00003	277573_72137_00003_cd	325731_00060_00003	325731_00060_00003_cd	325732_72255_00003	325732_72255_00003_cd	325733_72255_00001	325733_72255_00001_cd
 5s	15s	20d	14n	10s	14n	10s	14n	10s	14n	10s	14n	10s	14n	10s	14n	10s	14n	10s	14n	10s	14n	10s
 USGS	08188810	2013-03-10	11.22	A	10.08	A	10.58	A	0.11	A	739	A	154	A			500	A	0.36	A	0.54	A

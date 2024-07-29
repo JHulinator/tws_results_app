@@ -28,6 +28,7 @@
 #     R  Records for these data have been revised. [https://waterdata.usgs.gov/usa/nwis/revision/?site_no=08173900&ts_ids=136614,173853,173854,136613]
 #     e  Value has been estimated.
 # 
+#
 agency_cd	site_no	datetime	136613_00065_00003	136613_00065_00003_cd	136614_00060_00003	136614_00060_00003_cd	173853_00060_00001	173853_00060_00001_cd	173854_00060_00002	173854_00060_00002_cd
 5s	15s	20d	14n	10s	14n	10s	14n	10s	14n	10s
 USGS	08173900	1996-10-01			430	A:e				

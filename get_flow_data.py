@@ -20,7 +20,10 @@ cal = calendar.Calendar(6)
 
 for year in range(1963, today+1, 1):
     start_day = cal.monthdayscalendar(year, 6)[1][-1]
-    start_days.append(f'{year}-06-{start_day}')
+    if start_day < 10:
+        start_days.append(f'{year}-06-0{start_day}')
+    else:
+        start_days.append(f'{year}-06-{start_day}')
 
 # Get all the flow data
 l = []

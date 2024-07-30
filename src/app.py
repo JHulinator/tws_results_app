@@ -535,6 +535,14 @@ else:
     full_df = get_all_raw_data()
     full_df.to_csv('assets/all_data.csv')
 
+# Get the flow data
+flow_data = pd.read_csv('assets/flow_data.csv', sep=',', index_col=0)
+flow_fig = px.line(
+    flow_data.loc[(flow_data['variable'] == 'Discharge') & (flow_data['year'].isin([2023, 2022, 2024]))], x='milage', y='value', color='year'
+)
+flow_fig.show()
+print(flow_data)
+
 if DEBUG:
     pass
     # print(full_df)
@@ -1159,7 +1167,7 @@ def team_selected(rows):
 # if __name__ == '__main__':
 #     main()
 
-main()
+# main()
 
 '''
 TODO

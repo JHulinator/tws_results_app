@@ -8,6 +8,7 @@ from dash_bootstrap_templates import ThemeChangerAIO, template_from_url, ThemeSw
 import plotly.graph_objects as go
 import plotly.express as px
 import plotly.io as pio
+from plotly.subplots import make_subplots
 
 import pandas as pd
 import numpy as np
@@ -537,54 +538,67 @@ else:
 
 # Get the flow data
 flow_data = pd.read_csv('assets/flow_data.csv', sep=',', index_col=0)
-flow_fig = px.line(
-    flow_data.loc[(flow_data['variable'] == 'Discharge') & (flow_data['year'].isin([2023, 2022, 2024]))], x='milage', y='value', color='year'
-)
-flow_fig.show()
-print(flow_data)
 
 if DEBUG:
     pass
     # print(full_df)
 
-# Get the flow data
-flow_data = pd.read_csv('assets/flow_data.csv', sep=',')
+
 # Make a plot for development
-temp_df = flow_data.loc[flow_data['variable'] == 'Gage height']
-fig = px.violin(temp_df, x='milage', y='value', 
-    # color='year', 
-    custom_data=['variable', 'site_name', 'UOM', 'year'],
+temp_df_ht = flow_data.loc[flow_data['variable'] == 'Gage height']
+temp_df_dis = flow_data.loc[flow_data['variable'] == 'Discharge']
+
+
+# Make violin plot of the flow data
+flow_fig = make_subplots(specs=[[{"secondary_y": True}]])
+# Add gage ht dat
+flow_fig.add_trace(
+    go.Violin(
+        x=temp_df_ht['milage'],
+        y=temp_df_ht['value'],
+        points='all',
+        legendgroup='Gage height', scalegroup='Gage height', name='Gage height',
+        side='negative'
+    ),
+    secondary_y=False,
 )
-fig.update_traces(
-    hovertemplate='<b>%{customdata[0]} at %{customdata[1]}:</b><br>' + 
-    '%{y} %{customdata[2]}' +
-    'Milage: %{x:.2f} Mi'
-    '<extra>%{customdata[3]}</extra>'
+
+flow_fig.add_trace(
+    go.Violin(
+        x=temp_df_dis['milage'],
+        y=temp_df_dis['value'],
+        points='all',
+        legendgroup='Discharge', scalegroup='Discharge', name='Discharge',
+        side='positive'
+    ),
+    secondary_y=True,
 )
-# fig.add_trace(
-#     px.line(TWS_CHECKPOINTS, x='Milage', y='latitude', hover_data=[TWS_CHECKPOINTS.index]).data[0]
-# )
-# fig.update_layout(
-#     xaxis={
-#         'tickmode':'array',
-#         'tickvals':temp_df['milage'], #.to_list().append(TWS_CHECKPOINTS['Milage'].to_list())
-#         'ticktext':temp_df['site_name'],
-#         'tickangle':-20
-#     }
-# )
-# fig.show()
+
+flow_fig.update_yaxes(title_text='<b>Gage height [ft]</b>', secondary_y=False)
+flow_fig.update_yaxes(title_text='<b>Discharge [Cupic ft per sec]</b>', secondary_y=True)
+flow_fig.update_xaxes(tickmode='array', tickvals=temp_df_ht['milage'], ticktext=temp_df_ht['site_name'], tickangle=-20)
+
+flow_fig.update_traces(
+    meanline_visible=True,
+    pointpos=0,
+)
+flow_fig.update_layout(violingap=0, violinmode='overlay')
+
+# Add trace for each year with visible='legendonly'
 # endregion -----------------------------------------------------------------------------------------------------------
 
 
 # region Layout Elements ----------------------------------------------------------------------------------------------
+# s.switch_props.setdefault("value", False)
 color_mode_switch =  html.Span(
     [
         # dbc.Label(className='bi bi-moon', html_for="switch"), # fa fa-moon
         # dbc.Switch( id="switch", value=True, className="d-inline-block ms-1", persistence=True,),
         # dbc.Label(className='bi bi-brightness-high', html_for="switch"), #fa fa-sun
-        ThemeSwitchAIO(aio_id='switch')
+        ThemeSwitchAIO(aio_id='switch', switch_props={'value':False})
     ]
 )
+
 # color_mode_switch = ThemeSwitchAIO(aio_id='switch')
 
 theme_controls = ThemeChangerAIO(aio_id='theme', 
@@ -875,8 +889,8 @@ split_tab = dbc.Tab([
                )
 flow_tab = dbc.Tab([
     dcc.Graph(
-        figure= fig, # go.Figure(),
-        id='flow_raph',
+        figure=flow_fig, # go.Figure(),
+        id='flow_graph',
         config = {
         'autosizable':True, 
         'scrollZoom':True,
@@ -1156,6 +1170,23 @@ def update_split_graph(theme, switch_on, data, disp_typ, selected_teams, group_b
                 fig.add_trace(line)
 
     fig.update_layout(height=600, violinmode=violinmode,)
+    return fig
+
+
+@app.callback(
+    Output('flow_graph', 'figure'),
+    Input(ThemeChangerAIO.ids.radio('theme'), 'value'),
+    Input(ThemeSwitchAIO.ids.switch('switch'), 'value'),
+    State('flow_graph', 'figure'),
+)
+def update_flow_graph(theme, switch_on, fig):
+    # Find the right color template
+    template_name = theme.split('/')[-2]
+    template = pio.templates[template_name] if switch_on else pio.templates[f'{template_name}_dark']
+
+    fig = go.Figure(fig)
+    fig.update_layout(template=template)
+
     return fig
 
 

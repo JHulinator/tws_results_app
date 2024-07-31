@@ -546,6 +546,33 @@ print(flow_data)
 if DEBUG:
     pass
     # print(full_df)
+
+# Get the flow data
+flow_data = pd.read_csv('assets/flow_data.csv', sep=',')
+# Make a plot for development
+temp_df = flow_data.loc[flow_data['variable'] == 'Gage height']
+fig = px.violin(temp_df, x='milage', y='value', 
+    # color='year', 
+    custom_data=['variable', 'site_name', 'UOM', 'year'],
+)
+fig.update_traces(
+    hovertemplate='<b>%{customdata[0]} at %{customdata[1]}:</b><br>' + 
+    '%{y} %{customdata[2]}' +
+    'Milage: %{x:.2f} Mi'
+    '<extra>%{customdata[3]}</extra>'
+)
+# fig.add_trace(
+#     px.line(TWS_CHECKPOINTS, x='Milage', y='latitude', hover_data=[TWS_CHECKPOINTS.index]).data[0]
+# )
+# fig.update_layout(
+#     xaxis={
+#         'tickmode':'array',
+#         'tickvals':temp_df['milage'], #.to_list().append(TWS_CHECKPOINTS['Milage'].to_list())
+#         'ticktext':temp_df['site_name'],
+#         'tickangle':-20
+#     }
+# )
+# fig.show()
 # endregion -----------------------------------------------------------------------------------------------------------
 
 
@@ -846,10 +873,22 @@ split_tab = dbc.Tab([
                class_name='h-4',
                style={'height':'auto'}
                )
-tab3 = dbc.Tab([], 
+flow_tab = dbc.Tab([
+    dcc.Graph(
+        figure= fig, # go.Figure(),
+        id='flow_raph',
+        config = {
+        'autosizable':True, 
+        'scrollZoom':True,
+        'displaylogo':False,
+        'displayModeBar': True,
+        'modeBarButtonsToRemove':['lasso','select2d', 'resetScale2d']
+        },
+        style={'height':'auto'}
+    )
+], 
                label='River Flow Data', 
                class_name='h-4',
-               disabled = True
                )
 tab4 = dbc.Tab([], 
                label='Normalized Split Times', 
@@ -857,7 +896,7 @@ tab4 = dbc.Tab([],
                disabled = True
                )
 
-tabs = dbc.Tabs([split_tab,], style={'height':'auto'}) # dbc.Card(dbc.Tabs([split_tab, tab3, tab4, animation_tab]))
+tabs = dbc.Tabs([split_tab, flow_tab], style={'height':'auto'}) # dbc.Card(dbc.Tabs([split_tab, tab3, tab4, animation_tab]))
 # endregion
 # endregion -----------------------------------------------------------------------------------------------------------
 
@@ -1164,8 +1203,8 @@ def team_selected(rows):
 
 
 # Call the main method
-# if __name__ == '__main__':
-#     main()
+if __name__ == '__main__':
+    main()
 
 # main()
 

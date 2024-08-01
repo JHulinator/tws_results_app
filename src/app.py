@@ -547,50 +547,50 @@ if DEBUG:
 
 # Make a plot for development
 temp_df_ht = flow_data.loc[flow_data['variable'] == 'Gage height']
-temp_df_dis = flow_data.loc[flow_data['variable'] == 'Discharge']
+discharge_data = flow_data.loc[flow_data['variable'] == 'Discharge']
 
 
-# Make violin plot of the flow data
-flow_fig = make_subplots(specs=[[{"secondary_y": True}]])
-# Add gage ht dat
-flow_fig.add_trace(
-    go.Violin(
-        x=temp_df_ht['milage'],
-        y=temp_df_ht['value'],
-        points='all',
-        legendgroup='Gage height', scalegroup='Gage height', name='Gage height',
-        side='negative'
-    ),
-    secondary_y=False,
-)
+# # Make violin plot of the flow data
+# flow_fig = make_subplots(specs=[[{"secondary_y": True}]])
+# # Add gage ht dat
+# flow_fig.add_trace(
+#     go.Violin(
+#         x=temp_df_ht['milage'],
+#         y=temp_df_ht['value'],
+#         points='all',
+#         legendgroup='Gage height', scalegroup='Gage height', name='Gage height',
+#         side='negative'
+#     ),
+#     secondary_y=False,
+# )
 
-flow_fig.add_trace(
-    go.Violin(
-        x=temp_df_dis['milage'],
-        y=temp_df_dis['value'],
-        points='all',
-        legendgroup='Discharge', scalegroup='Discharge', name='Discharge',
-        side='positive'
-    ),
-    secondary_y=True,
-)
+# flow_fig.add_trace(
+#     go.Violin(
+#         x=discharge_data['milage'],
+#         y=discharge_data['value'],
+#         points='all',
+#         legendgroup='Discharge', scalegroup='Discharge', name='Discharge',
+#         side='positive'
+#     ),
+#     secondary_y=True,
+# )
 
-flow_fig.update_yaxes(title_text='<b>Gage height [ft]</b>', secondary_y=False)
-flow_fig.update_yaxes(title_text='<b>Discharge [Cupic ft per sec]</b>', secondary_y=True)
-flow_fig.update_xaxes(tickmode='array', tickvals=temp_df_ht['milage'], ticktext=temp_df_ht['site_name'], tickangle=-20)
+# flow_fig.update_yaxes(title_text='<b>Gage height [ft]</b>', secondary_y=False)
+# flow_fig.update_yaxes(title_text='<b>Discharge [Cupic ft per sec]</b>', secondary_y=True)
+# flow_fig.update_xaxes(tickmode='array', tickvals=temp_df_ht['milage'], ticktext=temp_df_ht['site_name'], tickangle=-20)
 
-flow_fig.update_traces(
-    meanline_visible=True,
-    pointpos=0,
-)
-flow_fig.update_layout(violingap=0, violinmode='overlay')
+# flow_fig.update_traces(
+#     meanline_visible=True,
+#     pointpos=0,
+# )
+# flow_fig.update_layout(violingap=0, violinmode='overlay')
 
-# Add trace for each year with visible='legendonly'
-lines = px.line(flow_data, x='milage', y='value', line_dash='variable', color='year')
-lines.update_layout(legend_traceorder="reversed")
+# # Add trace for each year with visible='legendonly'
+# lines = px.line(flow_data, x='milage', y='value', line_dash='variable', color='year')
+# # lines.update_layout(legend_traceorder="reversed")
 
-flow_fig.add_traces(lines.data, secondary_ys=(flow_data['variable'] == 'Discharge'))
-flow_fig.update_traces(selector=dict(type='scatter'), visible='legendonly')
+# flow_fig.add_traces(lines.data, secondary_ys=(flow_data['variable'] == 'Discharge'))
+# flow_fig.update_traces(selector=dict(type='scatter'), visible='legendonly')
 # endregion -----------------------------------------------------------------------------------------------------------
 
 
@@ -895,7 +895,7 @@ split_tab = dbc.Tab([
                )
 flow_tab = dbc.Tab([
     dcc.Graph(
-        figure=flow_fig, # go.Figure(),
+        figure=go.Figure(),
         id='flow_graph',
         config = {
         'autosizable':True, 
@@ -910,13 +910,26 @@ flow_tab = dbc.Tab([
                label='River Flow Data', 
                class_name='h-4',
                )
-tab4 = dbc.Tab([], 
-               label='Normalized Split Times', 
+norm_tab = dbc.Tab([
+    dcc.Graph(
+        figure = go.Figure(),
+        id='norm_graph',
+        config = {
+        'autosizable':True, 
+        'scrollZoom':True,
+        'displaylogo':False,
+        'displayModeBar': True,
+        'modeBarButtonsToRemove':['lasso','select2d', 'resetScale2d']
+        },
+        style={'height':600}
+    )
+], 
+               label='Normalization', 
                class_name='h-4',
-               disabled = True
+               disabled = False
                )
 
-tabs = dbc.Tabs([split_tab, flow_tab], style={'height':'auto'}) # dbc.Card(dbc.Tabs([split_tab, tab3, tab4, animation_tab]))
+tabs = dbc.Tabs([split_tab, flow_tab, norm_tab], style={'height':'auto'}) # dbc.Card(dbc.Tabs([split_tab, tab3, tab4, animation_tab]))
 # endregion
 # endregion -----------------------------------------------------------------------------------------------------------
 
@@ -1190,11 +1203,87 @@ def update_flow_graph(theme, switch_on, fig):
     template_name = theme.split('/')[-2]
     template = pio.templates[template_name] if switch_on else pio.templates[f'{template_name}_dark']
 
+    # Make violin plot of the flow data
+    flow_fig = make_subplots(specs=[[{"secondary_y": True}]])
+    # Add gage ht dat
+    flow_fig.add_trace(
+        go.Violin(
+            x=temp_df_ht['milage'],
+            y=temp_df_ht['value'],
+            points='all',
+            legendgroup='Gage height', scalegroup='Gage height', name='Gage height',
+            side='negative',
+            customdata=temp_df_ht[['year', 'site_name', 'variable']]
+        ),
+        secondary_y=False,
+    )
+
+    flow_fig.add_trace(
+        go.Violin(
+            x=discharge_data['milage'],
+            y=discharge_data['value'],
+            points='all',
+            legendgroup='Discharge', scalegroup='Discharge', name='Discharge',
+            side='positive',
+            customdata=discharge_data[['year', 'site_name', 'variable']]
+        ),
+        secondary_y=True,
+    )
+    flow_fig.update_traces(hovertemplate='(%{customdata[1]}, %{y})<extra>%{customdata[2]} %{customdata[0]}</extra>')
+    flow_fig.update_yaxes(title_text='<b>Gage height [ft]</b>', secondary_y=False)
+    flow_fig.update_yaxes(title_text='<b>Discharge [Cupic ft per sec]</b>', secondary_y=True)
+    flow_fig.update_xaxes(tickmode='array', tickvals=temp_df_ht['milage'], ticktext=temp_df_ht['site_name'], tickangle=-20)
+
+    flow_fig.update_traces(
+        meanline_visible=True,
+        pointpos=0,
+    )
+    flow_fig.update_layout(violingap=0, violinmode='overlay', height=600, template=template)
+
+    # Add trace for each year with visible='legendonly'
+    lines = px.line(flow_data, x='milage', y='value', line_dash='variable', color='year', template=template)
+
+
+    flow_fig.add_traces(lines.data, secondary_ys=(flow_data['variable'] == 'Discharge'))
+    flow_fig.update_traces(selector=dict(type='scatter'), visible='legendonly')
+
+    return flow_fig
+
+
+@app.callback(
+    Output('norm_graph', 'figure'),
+    Input(ThemeChangerAIO.ids.radio('theme'), 'value'),
+    Input(ThemeSwitchAIO.ids.switch('switch'), 'value'),
+    Input('data', 'data'),
+    State('norm_graph', 'figure'),
+)
+def update_norm_graph(theme, switch_on, data, fig):
+    # Find the right color template
+    template_name = theme.split('/')[-2]
+    template = pio.templates[template_name] if switch_on else pio.templates[f'{template_name}_dark']
+
+    # Read data into DataFrame
+    df = pd.read_json(data,orient='split')
+    
+    # Find the start and end milage of this checkpoint
+    this_split = 'Staples'
+    this_split_df = df.loc[df['Split Name'] == this_split]
+    milage = this_split_df['Milage'].iloc[0]
+    last_split_milage = df['Milage'].loc[df['Milage'] < milage].max()
+    last_split_milage = 0.0 if np.isnan(last_split_milage) else last_split_milage
+
+    # find the relivent flow data
+    this_flow = discharge_data.loc[(discharge_data['milage'] > last_split_milage) & (discharge_data['milage']<milage)]
+    # last_split_milage = max(0, None)
+    print(this_flow)
+
+    print(milage)
+
+
     fig = go.Figure(fig)
-    fig.update_layout(template=template, height=600)
 
+    fig.update_layout(template=template)
     return fig
-
 
 @app.callback(
     Output('grid', 'columnDefs'),
@@ -1247,5 +1336,14 @@ if __name__ == '__main__':
 
 '''
 TODO
-    *
+    On Split Distribution:
+    * Add team traces with visibility set to legent only
+    * Add control to space by milage on the
+    * Add left/and right buttons
+    On Flow data:
+    * Add Guage height vs. discharge selection
+    On Normalization:
+    * Add left/right arrow buttons with split lable in between
+    * Add guage height or discharge toggle
+    * add scaters of time/speed/total time/time of day vs. flow rate as weighted average of upstream guages
 '''

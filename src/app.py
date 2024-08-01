@@ -539,7 +539,6 @@ else:
 # Get the flow data
 flow_data = pd.read_csv('assets/flow_data.csv', sep=',', index_col=0)
 flow_data.sort_values(by=['year', 'milage'], axis=0, ascending=[False, True], inplace=True)
-print(flow_data)
 
 if DEBUG:
     pass
@@ -590,14 +589,8 @@ flow_fig.update_layout(violingap=0, violinmode='overlay')
 lines = px.line(flow_data, x='milage', y='value', line_dash='variable', color='year')
 lines.update_layout(legend_traceorder="reversed")
 
-flow_fig.add_traces(lines.data)
+flow_fig.add_traces(lines.data, secondary_ys=(flow_data['variable'] == 'Discharge'))
 flow_fig.update_traces(selector=dict(type='scatter'), visible='legendonly')
-flow_fig.update_traces(selector=dict(line_dash='dot'), visible='legendonly', secondary_y=True)
-
-# print(lines)
-# lines.show()
-# for yr in flow_data['year'].to_list():
-#     print(yr)
 # endregion -----------------------------------------------------------------------------------------------------------
 
 
@@ -1198,7 +1191,7 @@ def update_flow_graph(theme, switch_on, fig):
     template = pio.templates[template_name] if switch_on else pio.templates[f'{template_name}_dark']
 
     fig = go.Figure(fig)
-    fig.update_layout(template=template)
+    fig.update_layout(template=template, height=600)
 
     return fig
 

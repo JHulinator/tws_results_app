@@ -1386,6 +1386,8 @@ if __name__ == '__main__':
 
 '''
 TODO
+    Buggs:
+    * Discharge and height data seems to be fliped for some years
     On Split Distribution:
     * Add team traces with visibility set to legent only
     * Add control to space by milage on the

@@ -699,7 +699,7 @@ class_position_filter = dbc.DropdownMenu(
         )
     ]
 )
-min_hr = round(full_df['Finish time'].min(), 2) # round(29 + 46/60, 1)
+min_hr = round(full_df['Finish time'].min(), 2)  #round(29 + 46/60, 1)
 finis_time_filter = html.Div(
     [
         dbc.Label('Finish Time [Hr]'),
@@ -959,6 +959,7 @@ def main():
 
         # dcc.Store stores the data value
         dcc.Store(id='data', data=data.to_json(orient='split')),
+        dcc.Store(id='data_all_years', data=data.to_json(orient='split')),
         dcc.Store(id='selected_teams',)
     ],
     fluid=True,
@@ -1019,6 +1020,7 @@ def toggle_filter_collapse(n, is_open):
     Output('count_filter', 'value'),
     Output('count_filter_an', 'value'),
     Output('data', 'data'),
+    Output('data_all_years', 'data'),
 
     # Inputs
     Input('year_filter', 'value'),
@@ -1062,12 +1064,19 @@ def filter_update(year_filter, multi_value, class_filter, class_filter_an, pos_f
                               blade_filter=blade_filter, masters_filter=masters_filter, adult_youth_filter=adult_youth_filter, 
                               time_filter=time_filter
                               )
+    
+    df_all_years = filter_data( 
+                              class_filter=class_filter, pos_filter=pos_filter, cl_pos_filter=cl_pos_filter, 
+                              gender_filter=gender_filter, count_filter=count_filter, rudder_filter=rudder_filter, 
+                              blade_filter=blade_filter, masters_filter=masters_filter, adult_youth_filter=adult_youth_filter, 
+                              time_filter=time_filter
+                              )
 
     # Find teams that are first overall
     # print(fd_df.loc[fd_df['Overall Place'] == '1'])
     # Select the rows of all first place overall teams
 
-    return multi_value, year_filter, class_filter, class_filter_an, gender_filter, gender_filter_an, count_filter, count_filter_an, fd_df.to_json(orient='split')
+    return multi_value, year_filter, class_filter, class_filter_an, gender_filter, gender_filter_an, count_filter, count_filter_an, fd_df.to_json(orient='split'), df_all_years.to_json(orient='split')
 
 
 
@@ -1254,10 +1263,11 @@ def update_flow_graph(theme, switch_on, fig):
     Output('norm_graph', 'figure'),
     Input(ThemeChangerAIO.ids.radio('theme'), 'value'),
     Input(ThemeSwitchAIO.ids.switch('switch'), 'value'),
-    Input('data', 'data'),
+    Input('data_all_years', 'data'),
+    Input('disp_typ', 'value'),
     State('norm_graph', 'figure'),
 )
-def update_norm_graph(theme, switch_on, data, fig):
+def update_norm_graph(theme, switch_on, data, disp_typ, fig):
     # Find the right color template
     template_name = theme.split('/')[-2]
     template = pio.templates[template_name] if switch_on else pio.templates[f'{template_name}_dark']
@@ -1266,21 +1276,61 @@ def update_norm_graph(theme, switch_on, data, fig):
     df = pd.read_json(data,orient='split')
     
     # Find the start and end milage of this checkpoint
-    this_split = 'Staples'
+    this_split = 'Cheapside' # Staples, Luling 90, Palmetto, Gonzales, Hochheim, Cheapside, Cuero 72, Cuero 236, Victoria, Dupont, Swinging Bridge (off Canal Rd), Saltwater Barrier, Calhouns RV
     this_split_df = df.loc[df['Split Name'] == this_split]
+    hovertemplate='<b>Boat# %{customdata[0]}</b><br><b>%{customdata[1]}</b><br><br>%{customdata[2]}-Overall, %{customdata[3]}-%{customdata[4]}<br>' + disp_typ + ' for %{x}: %{y}<extra>%{customdata[5]}</extra>'
+    hovertemplate_trace=disp_typ + ' for %{x}: %{y}'
+    if disp_typ == 'Time of day':
+        this_split_df[DISP_TYP_DICT[disp_typ]] = pd.to_datetime(this_split_df['datetime_2000_1_1'])
+        tickformat = '%a %H:%M'
+    elif disp_typ == 'Split time':
+        this_split_df[DISP_TYP_DICT[disp_typ]] = pd.to_timedelta(this_split_df[DISP_TYP_DICT[disp_typ]]) + pd.to_datetime('1970/01/01')
+        tickformat = '%H:%M'
+    elif disp_typ == 'Total time':
+        this_split_df[DISP_TYP_DICT[disp_typ]] = pd.to_numeric(this_split_df['float_hours']) # pd.to_timedelta(figure_data['Hours']) / 3600000000000 # pd.to_datetime(figure_data['datetime_2000_1_1']) - pd.to_datetime('2000/1/1 9:00am') # figure_data['Hours']
+        tickformat = '%2f'
+        hovertemplate='<b>Boat# %{customdata[0]}</b><br><b>%{customdata[1]}</b><br><br>%{customdata[2]}-Overall, %{customdata[3]}-%{customdata[4]}<br>' + disp_typ + ' for %{x}: %{y:.2f}:Hr.<extra>%{customdata[5]}</extra>'
+        hovertemplate_trace=disp_typ + ' for %{x}: %{y:.2f}Hr.'
+    elif disp_typ == 'Speed':
+        tickformat ='%2f'
+        hovertemplate='<b>Boat# %{customdata[0]}</b><br><b>%{customdata[1]}</b><br><br>%{customdata[2]}-Overall, %{customdata[3]}-%{customdata[4]}<br>' + disp_typ + ' for %{x}: %{y:.2f}MPH<extra>%{customdata[5]}</extra>'
+        hovertemplate_trace=disp_typ + ' for %{x}: %{y:.2f}MPH'
+
+
     milage = this_split_df['Milage'].iloc[0]
     last_split_milage = df['Milage'].loc[df['Milage'] < milage].max()
     last_split_milage = 0.0 if np.isnan(last_split_milage) else last_split_milage
+    split_milage = milage - last_split_milage
 
     # find the relivent flow data
-    this_flow = discharge_data.loc[(discharge_data['milage'] > last_split_milage) & (discharge_data['milage']<milage)]
-    # last_split_milage = max(0, None)
-    print(this_flow)
+    this_flow = discharge_data.loc[(discharge_data['milage'] > last_split_milage) & (discharge_data['milage']<milage) | (discharge_data['milage'] == discharge_data['milage'].loc[discharge_data['milage']<last_split_milage].max())]
+    flow_eff = {}
+    yrs = []
+    flows = []
+    means = []
+    for yr in df['year'].unique():
+        # Calculate the weighted average of flow on this section for this year
+        effective_flow = this_flow.loc[this_flow['year'] == yr]
+        effective_flow['final_mil'] =effective_flow.apply(lambda x: effective_flow['milage'].loc[effective_flow['milage'] > x['milage']].min() if not np.isnan(effective_flow['milage'].loc[effective_flow['milage'] > x['milage']].min()) else milage, axis=1)
+        effective_flow['initial_mil'] = effective_flow.apply(lambda x: x['milage'] if x['milage'] > last_split_milage else last_split_milage, axis=1)
+        effective_flow['dist_eff'] = effective_flow.apply(lambda x: x['final_mil'] - x['initial_mil'], axis=1)
+        effective_flow['discharge_eff'] = effective_flow.apply(lambda x: x['value'] * x['dist_eff']/split_milage, axis=1)
+        flow_eff.update({yr:effective_flow['discharge_eff'].sum()})
+        yrs.append(yr)
+        flows.append(effective_flow['discharge_eff'].sum())
+        means.append(this_split_df[DISP_TYP_DICT[disp_typ]].loc[this_split_df['year'] == yr].mean())
+    this_split_df['flow_eff'] = this_split_df['year'].apply(lambda x: flow_eff[x])
+    print(np.polyfit(flows, means, 1))
 
-    print(milage)
-
-
-    fig = go.Figure(fig)
+    fig = px.scatter(this_split_df,
+                    y=DISP_TYP_DICT[disp_typ],
+                    x='flow_eff',
+                    # color='Overall Place',
+                    custom_data =['Boat #', 'Team Name', 'Overall Place', 'Class Place', 'Class', 'year'],
+                    # trendline='ols',
+                    template=template
+                    )# go.Figure(fig)
+    fig.update_traces(hovertemplate=hovertemplate)
 
     fig.update_layout(template=template)
     return fig
